@@ -1,22 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Music Moden UI Beta",
+  "name": "YouTube Music Modern UI Beta",
   "version": "0.9",
   "description": "YouTube MusicのUIをApple Music風に変更します",
+
   "permissions": [
+    "storage",
     "scripting",
-    "storage", 
     "tabs"
   ],
+
   "host_permissions": [
     "https://music.youtube.com/*",
     "https://lrclib.net/api/*"
   ],
+
   "content_scripts": [
     {
       "matches": ["https://music.youtube.com/*"],
-      "js": ["content.js"],
-      "css": ["style.css"],
+      "js": ["js/content.js"],
+      "css": ["css/style.css"],
       "run_at": "document_idle"
     }
   ]
