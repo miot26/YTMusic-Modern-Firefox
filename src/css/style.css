@@ -104,9 +104,9 @@ body.ytm-custom-layout ytmusic-search-box input {
 #ytm-custom-left-col {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+  align-items: start;
+  justify-content: start;
+  text-align: start;
   width: 450px;
   flex-shrink: 0;
 }
@@ -128,7 +128,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   color: #fff;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: start;
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 #ytm-custom-title {
@@ -243,7 +243,7 @@ body.ytm-custom-layout ytmusic-player-bar .content-info-wrapper {
 }
 body.ytm-custom-layout ytmusic-player-bar yt-formatted-string.title,
 body.ytm-custom-layout ytmusic-player-bar .title {
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 700 !important;
   color: #fff !important;
   margin-bottom: 4px !important;
@@ -253,7 +253,7 @@ body.ytm-custom-layout ytmusic-player-bar .title {
   max-width: 100% !important;
 }
 body.ytm-custom-layout ytmusic-player-bar .byline {
-  font-size: 13px !important;
+  font-size: 14px !important;
   color: rgba(255, 255, 255, 0.7) !important;
   overflow: visible !important;
 }
