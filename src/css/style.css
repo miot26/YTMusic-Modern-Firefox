@@ -190,7 +190,7 @@ body.ytm-custom-layout ytmusic-search-box input {
 /* --- Player Bar (Floating Glass Panel) --- */
 body.ytm-custom-layout ytmusic-player-bar {
   display: grid !important;
-  grid-template-columns: 1.2fr 1fr 1.2fr !important;
+  grid-template-columns: 1fr 1.75fr 1fr !important;
   position: fixed !important;
   bottom: 40px !important;
   left: 50% !important;
