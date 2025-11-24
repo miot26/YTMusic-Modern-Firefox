@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Music Modern UI Beta",
-  "version": "0.9",
+  "name": "YouTube Music Modern UI for Firefox",
+  "version": "0.0.1b",
   "description": "YouTube MusicのUIをApple Music風に変更します",
 
   "permissions": [
