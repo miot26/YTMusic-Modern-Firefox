@@ -224,7 +224,7 @@ body.ytm-custom-layout ytmusic-player-bar::after {
 
 /* Show mini artwork */
 body.ytm-custom-layout ytmusic-player-bar .thumbnail-image-wrapper {
-  display: block !important;
+  display: none !important;
   margin-right: 12px !important;
   flex-shrink: 0 !important;
 }
