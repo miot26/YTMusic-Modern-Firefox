@@ -3,6 +3,7 @@ if (typeof browser !== "undefined" && typeof chrome === "undefined") {
 }
 
 (function () {
+
     let config = {
         deepLKey: null,
         useTrans: true,

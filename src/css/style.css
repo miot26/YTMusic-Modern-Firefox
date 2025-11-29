@@ -1,6 +1,6 @@
 /* フォント読み込み */
 @font-face {
-  font-family: "Inter";
+  font-family: "InterVariable";
   src: url("../assets/fonts/InterVariable.woff2") format("woff2");
   font-weight: 100 900;
   font-stretch: 75% 125%;
@@ -9,7 +9,7 @@
 
 /* フォント適用 */
 * {
-  font-family: '-apple-system', 'Inter', 'Noto Sans JP' !important;
+  font-family: '-apple-system', 'InterVariable', 'Noto Sans JP' !important;
 }
 
 /* 背景ぼかし */
