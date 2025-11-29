@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Music Modern UI for Firefox",
-  "version": "0.0.2b",
+  "version": "0.0.3b",
   "description": "YouTube Musicをもっと美しく",
 
   "browser_specific_settings": {
