@@ -1,4 +1,7 @@
-// Service Worker なので 常時起動させる ここは近日中に修正を掛けたい
+if (typeof browser !== "undefined" && typeof chrome === "undefined") {
+  window.chrome = browser;
+}
+
 let keepAlive = false;
 browser.runtime.onConnect.addListener((port) => {
     if (port.name === "keepAlive") {
@@ -15,7 +18,8 @@ setInterval(() => {
     }
 }, 25000);
 
-browser.runtime.onMessage.addListener((req, sender, sendResponse) => {
+
+chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     if (req.type === 'TRANSLATE') {
         const { text, apiKey, targetLang } = req.payload;
         const endpoint = apiKey.endsWith(':fx')
@@ -42,7 +46,7 @@ browser.runtime.onMessage.addListener((req, sender, sendResponse) => {
             sendResponse({ success: false, error: err.toString() });
         });
 
-        return true; // 非同期応答を許可
+        return true;
     }
 
     const normalizeArtist = (s) =>
@@ -104,8 +108,15 @@ browser.runtime.onMessage.addListener((req, sender, sendResponse) => {
                 const hit = pickBestLrcLibHit(items, artist);
                 if (!hit) return '';
 
-                const synced = hit.syncedLyrics || hit.synced_lyrics || '';
-                const plain = hit.plainLyrics || hit.plain_lyrics || hit.plain_lyrics_text || '';
+                const synced =
+                    hit.syncedLyrics ||
+                    hit.synced_lyrics ||
+                    '';
+                const plain =
+                    hit.plainLyrics ||
+                    hit.plain_lyrics ||
+                    hit.plain_lyrics_text ||
+                    '';
 
                 const lyrics = (synced || plain || '').trim();
                 console.log('[BG] LrcLib chosen track:', {
@@ -120,52 +131,107 @@ browser.runtime.onMessage.addListener((req, sender, sendResponse) => {
             });
     };
 
-    if (req.type === 'GET_LYRICS') {
-        const { track, artist, youtube_url } = req.payload;
+    const formatLrcTime = (seconds) => {
+        const total = Math.max(0, seconds);
+        const min = Math.floor(total / 60);
+        const sec = Math.floor(total - min * 60);
+        const cs  = Math.floor((total - min * 60 - sec) * 100);
+        const mm = String(min).padStart(2, '0');
+        const ss = String(sec).padStart(2, '0');
+        const cc = String(cs).padStart(2, '0');
+        return `${mm}:${ss}.${cc}`;
+    };
 
-        console.log('[BG] GET_LYRICS', { track, artist, youtube_url });
+    if (req.type === 'GET_LYRICS') {
+        const { track, artist, youtube_url, video_id } = req.payload;
+
+        console.log('[BG] GET_LYRICS', { track, artist, youtube_url, video_id });
 
         const fetchFromLrchub = () => {
             return fetch('https://lrchub.coreone.work/api/lyrics', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ track, artist, youtube_url })
+                body: JSON.stringify({ track, artist, youtube_url, video_id })
             })
             .then(r => r.text())
             .then(text => {
                 let lyrics = '';
+                let dynamicLines = null;
+
                 try {
                     const json = JSON.parse(text);
                     console.log('[BG] Lyrics API JSON:', json);
                     const res = json.response || json;
 
-                    const synced = typeof res.synced_lyrics === 'string' ? res.synced_lyrics.trim() : '';
-                    const plain  = typeof res.plain_lyrics  === 'string' ? res.plain_lyrics.trim()  : '';
+                    if (res.dynamic_lyrics && Array.isArray(res.dynamic_lyrics.lines) && res.dynamic_lyrics.lines.length) {
+                        dynamicLines = res.dynamic_lyrics.lines;
 
-                    if (synced) lyrics = synced;
-                    else if (plain) lyrics = plain;
+                        const lrcLines = dynamicLines.map(line => {
+                            let ms = null;
+                            if (typeof line.startTimeMs === 'number') {
+                                ms = line.startTimeMs;
+                            } else if (typeof line.startTimeMs === 'string') {
+                                const n = Number(line.startTimeMs);
+                                if (!Number.isNaN(n)) ms = n;
+                            }
+                            if (ms == null) return null;
+
+                            let text = '';
+                            if (typeof line.text === 'string' && line.text.length) {
+                                text = line.text;
+                            } else if (Array.isArray(line.chars)) {
+                                text = line.chars
+                                    .map(c => c.c || c.text || c.caption || '')
+                                    .join('');
+                            }
+
+                            text = (text || '').trim();
+                            const timeTag = `[${formatLrcTime(ms / 1000)}]`;
+                            return text ? `${timeTag} ${text}` : timeTag;
+                        }).filter(Boolean);
+
+                        lyrics = lrcLines.join('\n');
+                    } else {
+                        const synced = typeof res.synced_lyrics === 'string' ? res.synced_lyrics.trim() : '';
+                        const plain  = typeof res.plain_lyrics  === 'string' ? res.plain_lyrics.trim()  : '';
+                        if (synced) lyrics = synced;
+                        else if (plain) lyrics = plain;
+                    }
                 } catch (e) {
-                    console.warn('[BG] Lyrics API response is not JSON, ignoring for LRCHub');
+                    console.warn('[BG] Lyrics API response is not JSON, ignoring for LRCHub', e);
                 }
+
                 if (!lyrics) {
-                    console.log('[BG] LRCHub returned no lyrics, will fallback to LrcLib if needed');
+                    console.log('[BG] LRCHub returned no lyrics text');
                 }
-                return lyrics;
+
+                return { lyrics, dynamicLines };
             });
         };
 
         fetchFromLrchub()
-            .then(lrchubLyrics => {
-                if (lrchubLyrics) {
-                    console.log('[BG] Using LRCHub lyrics');
-                    return lrchubLyrics;
+            .then(lrchubRes => {
+                if (lrchubRes.lyrics && lrchubRes.lyrics.trim()) {
+                    console.log('[BG] Using LRCHub lyrics (dynamic_lyrics:', !!lrchubRes.dynamicLines, ')');
+                    sendResponse({
+                        success: true,
+                        lyrics: lrchubRes.lyrics,
+                        dynamicLines: lrchubRes.dynamicLines || null
+                    });
+                    return null;
                 }
-                console.log('[BG] Fallback to LrcLib');
-                return fetchFromLrcLib(track, artist);
-            })
-            .then(finalLyrics => {
-                console.log('[BG] Final lyrics source length:', finalLyrics ? finalLyrics.length : 0);
-                sendResponse({ success: !!finalLyrics, lyrics: finalLyrics || '' });
+
+                console.log('[BG] LRCHub empty, fallback to LrcLib');
+                return fetchFromLrcLib(track, artist)
+                    .then(lrclibLyrics => {
+                        const ok = !!(lrclibLyrics && lrclibLyrics.trim());
+                        sendResponse({
+                            success: ok,
+                            lyrics: lrclibLyrics || '',
+                            dynamicLines: null
+                        });
+                        return null;
+                    });
             })
             .catch(err => {
                 console.error("Lyrics API Error:", err);
@@ -186,7 +252,10 @@ browser.runtime.onMessage.addListener((req, sender, sendResponse) => {
                 url.searchParams.set('video_id', video_id);
             }
 
-            const reqLangs = Array.isArray(langs) && langs.length ? langs : (lang ? [lang] : []);
+            const reqLangs = Array.isArray(langs) && langs.length
+                ? langs
+                : (lang ? [lang] : []);
+
             reqLangs.forEach(l => url.searchParams.append('lang', l));
 
             console.log('[BG] GET_TRANSLATION', url.toString());

@@ -1,9 +1,8 @@
-(function() {
-    if (typeof browser === 'undefined' || !browser.runtime) {
-        console.error("Firefox WebExtension API 'browser' not found.");
-        return;
-    }
+if (typeof browser !== "undefined" && typeof chrome === "undefined") {
+  window.chrome = browser;
+}
 
+(function () {
     let config = {
         deepLKey: null,
         useTrans: true,
@@ -12,20 +11,28 @@
         subLang: 'en'
     };
 
+    const NO_LYRICS_SENTINEL = '__NO_LYRICS__';
+
     let currentKey = null;
     let lyricsData = [];
     let hasTimestamp = false;
+    let dynamicLines = null;
+    let lastActiveIndex = -1;
+    let lastTimeForChars = -1;
+    let lyricRafId = null;
 
     const ui = {
         bg: null, wrapper: null,
         title: null, artist: null, artwork: null,
         lyrics: null, input: null, settings: null,
-        btnArea: null, uploadMenu: null, deleteDialog: null
+        btnArea: null, uploadMenu: null, deleteDialog: null,
+        settingsBtn: null
     };
 
     let hideTimer = null;
     let uploadMenuGlobalSetup = false;
     let deleteDialogGlobalSetup = false;
+    let settingsOutsideClickSetup = false;
 
     const handleInteraction = () => {
         if (!ui.btnArea) return;
@@ -39,16 +46,14 @@
     };
 
     const storage = {
-        // browser.storage.local
-        _api: browser.storage.local,
+        _api: chrome?.storage?.local,
         get: (k) => new Promise(r => {
             if (!storage._api) return r(null);
-            storage._api.get([k]).then(res => r(res[k] || null)).catch(() => r(null));
+            storage._api.get([k], res => r(res[k] || null));
         }),
-        // Promise ベース
-        set: (k, v) => { if (storage._api) storage._api.set({ [k]: v }).catch(e => console.error("Storage set failed", e)); },
-        remove: (k) => { if (storage._api) storage._api.remove(k).catch(e => console.error("Storage remove failed", e)); },
-        clear: () => confirm('全データを削除しますか？') && storage._api?.clear().then(() => location.reload()).catch(e => console.error("Storage clear failed", e))
+        set: (k, v) => { if (storage._api) storage._api.set({ [k]: v }); },
+        remove: (k) => { if (storage._api) storage._api.remove(k); },
+        clear: () => confirm('全データを削除しますか？') && storage._api?.clear(() => location.reload())
     };
 
     const resolveDeepLTargetLang = (lang) => {
@@ -83,9 +88,10 @@
         if (!tagTest.test(lrc)) {
             const lines = lrc
                 .split(/\r?\n/)
-                .map(t => t.trim())
-                .filter(Boolean)
-                .map(text => ({ time: null, text }));
+                .map(line => {
+                    const text = line.replace(/^\s+|\s+$/g, '');
+                    return { time: null, text };
+                });
             return { lines, hasTs: false };
         }
 
@@ -104,8 +110,9 @@
 
             if (lastTime !== null) {
                 const rawText = lrc.slice(lastIndex, match.index);
-                const text = rawText.replace(/\r?\n/g, ' ').trim();
-                if (text) result.push({ time: lastTime, text });
+                const cleaned = rawText.replace(/\r?\n/g, ' ');
+                const text = cleaned.trim();
+                result.push({ time: lastTime, text });
             }
 
             lastTime = time;
@@ -114,8 +121,9 @@
 
         if (lastTime !== null && lastIndex < lrc.length) {
             const rawText = lrc.slice(lastIndex);
-            const text = rawText.replace(/\r?\n/g, ' ').trim();
-            if (text) result.push({ time: lastTime, text });
+            const cleaned = rawText.replace(/\r?\n/g, ' ');
+            const text = cleaned.trim();
+            result.push({ time: lastTime, text });
         }
 
         result.sort((a, b) => (a.time || 0) - (b.time || 0));
@@ -136,8 +144,8 @@
 
     const isMixedLang = (s) => {
         if (!s) return false;
-        const hasLatin  = /[A-Za-z]/.test(s);
-        const hasCJK    = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/.test(s);
+        const hasLatin = /[A-Za-z]/.test(s);
+        const hasCJK = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/.test(s);
         const hasHangul = /[\uAC00-\uD7AF]/.test(s);
         let kinds = 0;
         if (hasLatin) kinds++;
@@ -163,10 +171,11 @@
         if (!config.deepLKey || !lines.length) return null;
         const targetLang = resolveDeepLTargetLang(langCode);
         try {
-            // ⚠️ browser.runtime.sendMessage に置き換え
-            const res = await browser.runtime.sendMessage({
-                type: 'TRANSLATE',
-                payload: { text: lines.map(l => l.text), apiKey: config.deepLKey, targetLang }
+            const res = await new Promise(resolve => {
+                chrome.runtime.sendMessage({
+                    type: 'TRANSLATE',
+                    payload: { text: lines.map(l => l.text), apiKey: config.deepLKey, targetLang }
+                }, resolve);
             });
             if (res?.success && res.translations?.length === lines.length) {
                 return res.translations.map(t => t.text);
@@ -238,16 +247,16 @@
             <div class="ytm-upload-menu-title">歌詞アップロード</div>
             <button class="ytm-upload-menu-item" data-action="local">
                 <span class="ytm-upload-menu-item-icon">💾</span>
-                <span>ローカルフォルダーのアップロード</span>
+                <span>ローカル歌詞読み込み/ReadLyrics</span>
             </button>
             <button class="ytm-upload-menu-item" data-action="add-sync">
                 <span class="ytm-upload-menu-item-icon">✨</span>
-                <span>歌詞の同期表示を追加</span>
+                <span>歌詞同期を追加/AddTiming</span>
             </button>
             <div class="ytm-upload-menu-separator"></div>
             <button class="ytm-upload-menu-item" data-action="fix">
                 <span class="ytm-upload-menu-item-icon">✏️</span>
-                <span>歌詞の間違いを修正リクエスト</span>
+                <span>歌詞の間違いを修正/FixLyrics</span>
             </button>
         `;
         ui.btnArea.appendChild(menu);
@@ -349,8 +358,8 @@
                 ev.stopPropagation();
                 if (currentKey) {
                     storage.remove(currentKey);
-                    currentKey = null;
                     lyricsData = [];
+                    dynamicLines = null;
                     renderLyrics([]);
                 }
                 toggleDialog(false);
@@ -446,7 +455,7 @@
             const cachedTrans = await storage.get('ytm_trans_enabled');
             if (cachedTrans !== null && cachedTrans !== undefined) config.useTrans = cachedTrans;
             const mainLangStored = await storage.get('ytm_main_lang');
-            const subLangStored  = await storage.get('ytm_sub_lang');
+            const subLangStored = await storage.get('ytm_sub_lang');
             if (mainLangStored) config.mainLang = mainLangStored;
             if (subLangStored !== null && subLangStored !== undefined) config.subLang = subLangStored;
 
@@ -454,7 +463,7 @@
             document.getElementById('trans-toggle').checked = config.useTrans;
 
             setupLangPills('main-lang-group', config.mainLang, v => { config.mainLang = v; });
-            setupLangPills('sub-lang-group',  config.subLang,  v => { config.subLang  = v; });
+            setupLangPills('sub-lang-group', config.subLang, v => { config.subLang = v; });
         })();
 
         document.getElementById('save-settings-btn').onclick = () => {
@@ -476,6 +485,17 @@
                 ev.stopPropagation();
                 ui.settings.classList.remove('active');
             };
+        }
+
+        if (!settingsOutsideClickSetup) {
+            settingsOutsideClickSetup = true;
+            document.addEventListener('click', (ev) => {
+                if (!ui.settings) return;
+                if (!ui.settings.classList.contains('active')) return;
+                if (ui.settings.contains(ev.target)) return;
+                if (ui.settingsBtn && ui.settingsBtn.contains(ev.target)) return;
+                ui.settings.classList.remove('active');
+            }, true);
         }
     }
 
@@ -506,8 +526,8 @@
         ui.btnArea = createEl('div', 'ytm-btn-area');
         const btns = [];
 
-        const uploadBtnConfig = { txt: 'Upload', click: () => {} };
-        const trashBtnConfig  = { txt: '🗑️', cls: 'icon-btn', click: () => {} };
+        const uploadBtnConfig = { txt: 'Upload', click: () => { } };
+        const trashBtnConfig = { txt: '🗑️', cls: 'icon-btn', click: () => { } };
         const settingsBtnConfig = {
             txt: '⚙️',
             cls: 'icon-btn',
@@ -522,7 +542,8 @@
             ui.btnArea.appendChild(btn);
 
             if (b === uploadBtnConfig) setupUploadMenu(btn);
-            if (b === trashBtnConfig)  setupDeleteDialog(btn);
+            if (b === trashBtnConfig) setupDeleteDialog(btn);
+            if (b === settingsBtnConfig) ui.settingsBtn = btn;
         });
 
         ui.input = createEl('input');
@@ -542,51 +563,6 @@
         setupAutoHideEvents();
     }
 
-    const tick = async () => {
-        if (!document.getElementById('my-mode-toggle')) {
-            const rc = document.querySelector('.right-controls-buttons');
-            if (rc) {
-                const btn = createEl('button', 'my-mode-toggle', '', 'IMMERSION');
-                btn.onclick = () => {
-                    config.mode = !config.mode;
-                    document.body.classList.toggle('ytm-custom-layout', config.mode);
-                };
-                rc.prepend(btn);
-            }
-        }
-
-        const layout = document.querySelector('ytmusic-app-layout');
-        const isPlayerOpen = layout?.hasAttribute('player-page-open');
-
-        if (!config.mode || !isPlayerOpen) {
-            document.body.classList.remove('ytm-custom-layout');
-            return;
-        }
-
-        document.body.classList.add('ytm-custom-layout');
-        initLayout();
-
-        const meta = getMetadata();
-        if (!meta) return;
-
-        const key = `${meta.title}///${meta.artist}`;
-        if (currentKey !== key) {
-            currentKey = key;
-            updateMetaUI(meta);
-            loadLyrics(meta);
-        }
-    };
-
-    function updateMetaUI(meta) {
-        ui.title.innerText = meta.title;
-        ui.artist.innerText = meta.artist;
-        if (meta.src) {
-            ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
-            ui.bg.style.backgroundImage = `url(${meta.src})`;
-        }
-        ui.lyrics.innerHTML = '<div style="opacity:0.5; padding:20px;">Loading...</div>';
-    }
-
     const buildAlignedTranslations = (baseLines, transLinesByLang) => {
         const alignedMap = {};
         const TOL = 0.15;
@@ -602,12 +578,21 @@
 
             let j = 0;
             for (let i = 0; i < baseLines.length; i++) {
-                const tBase = baseLines[i].time;
+                const baseLine = baseLines[i] || {};
+                const tBase = baseLine.time;
+                const baseTextRaw = (baseLine.text ?? '');
+
+                if (baseTextRaw.trim() === '') {
+                    res[i] = '';
+                    continue;
+                }
+
                 if (typeof tBase !== 'number') {
                     const cand = arr[i];
                     if (cand && typeof cand.text === 'string') {
-                        const txt = cand.text.trim();
-                        res[i] = txt || null;
+                        const raw = cand.text;
+                        const trimmed = raw.trim();
+                        res[i] = trimmed === '' ? '' : trimmed;
                     }
                     continue;
                 }
@@ -625,8 +610,9 @@
                     typeof arr[j].time === 'number' &&
                     Math.abs(arr[j].time - tBase) <= TOL
                 ) {
-                    const txt = (arr[j].text || '').trim();
-                    res[i] = txt || null;
+                    const raw = (arr[j].text ?? '');
+                    const trimmed = raw.trim();
+                    res[i] = trimmed === '' ? '' : trimmed;
                 } else {
                     res[i] = null;
                 }
@@ -642,12 +628,12 @@
         if (!config.useTrans || !Array.isArray(baseLines) || !baseLines.length) return baseLines;
 
         const mainLangStored = await storage.get('ytm_main_lang');
-        const subLangStored  = await storage.get('ytm_sub_lang');
+        const subLangStored = await storage.get('ytm_sub_lang');
         if (mainLangStored) config.mainLang = mainLangStored;
         if (subLangStored !== null && subLangStored !== undefined) config.subLang = subLangStored;
 
         const mainLang = config.mainLang || 'original';
-        const subLang  = config.subLang || '';
+        const subLang = config.subLang || '';
 
         const langsToFetch = [];
         if (mainLang && mainLang !== 'original') langsToFetch.push(mainLang);
@@ -656,10 +642,11 @@
 
         let lrcMap = {};
         try {
-            // browser.runtime.sendMessage
-            const res = await browser.runtime.sendMessage({
-                type: 'GET_TRANSLATION',
-                payload: { youtube_url: youtubeUrl, langs: langsToFetch }
+            const res = await new Promise(resolve => {
+                chrome.runtime.sendMessage({
+                    type: 'GET_TRANSLATION',
+                    payload: { youtube_url: youtubeUrl, langs: langsToFetch }
+                }, resolve);
             });
             if (res?.success && res.lrcMap) lrcMap = res.lrcMap;
         } catch (e) {
@@ -691,13 +678,12 @@
 
                     const plain = translatedTexts.join('\n');
                     if (plain.trim()) {
-                        // browser.runtime.sendMessage
-                        browser.runtime.sendMessage({
+                        chrome.runtime.sendMessage({
                             type: 'REGISTER_TRANSLATION',
                             payload: { youtube_url: youtubeUrl, lang, lyrics: plain }
-                        }).then((res) => {
+                        }, (res) => {
                             console.log('[CS] REGISTER_TRANSLATION', lang, res);
-                        }).catch(e => console.warn('REGISTER_TRANSLATION send failed', e));
+                        });
                     }
                 }
             }
@@ -710,7 +696,9 @@
             if (!langCode || langCode === 'original') return baseText;
             const arr = alignedMap[langCode];
             if (!arr) return baseText;
-            return arr[index] || baseText;
+
+            const v = arr[index];
+            return (v === null || v === undefined) ? baseText : v;
         };
 
         for (let i = 0; i < final.length; i++) {
@@ -740,41 +728,97 @@
     }
 
     async function loadLyrics(meta) {
-
-        
         if (!config.deepLKey) config.deepLKey = await storage.get('ytm_deepl_key');
         const cachedTrans = await storage.get('ytm_trans_enabled');
         if (cachedTrans !== null && cachedTrans !== undefined) config.useTrans = cachedTrans;
         const mainLangStored = await storage.get('ytm_main_lang');
-        const subLangStored  = await storage.get('ytm_sub_lang');
+        const subLangStored = await storage.get('ytm_sub_lang');
         if (mainLangStored) config.mainLang = mainLangStored;
         if (subLangStored !== null && subLangStored !== undefined) config.subLang = subLangStored;
 
-        let data = await storage.get(currentKey);
+        const thisKey = `${meta.title}///${meta.artist}`;
+        if (thisKey !== currentKey) return;
 
-        if (!data) {
+        let cached = await storage.get(thisKey);
+        dynamicLines = null;
+        let data = null;
+        let noLyricsCached = false;
+
+        if (cached !== null && cached !== undefined) {
+            if (cached === NO_LYRICS_SENTINEL) {
+                noLyricsCached = true;
+            } else if (typeof cached === 'string') {
+                data = cached;
+            } else if (typeof cached === 'object') {
+                if (typeof cached.lyrics === 'string') {
+                    data = cached.lyrics;
+                }
+                if (Array.isArray(cached.dynamicLines)) {
+                    dynamicLines = cached.dynamicLines;
+                }
+                if (cached.noLyrics) {
+                    noLyricsCached = true;
+                }
+            }
+        }
+
+        if (!data && noLyricsCached) {
+            if (thisKey !== currentKey) return;
+            renderLyrics([]);
+            return;
+        }
+
+        if (!data && !noLyricsCached) {
+            let gotLyrics = false;
+
             try {
                 const track = meta.title.replace(/\s*[\(-\[].*?[\)-]].*/, "");
                 const artist = meta.artist;
                 const youtube_url = getCurrentVideoUrl();
+                const video_id = getCurrentVideoId();
 
-                // browser.runtime.sendMessage
-                const res = await browser.runtime.sendMessage(
-                    { type: 'GET_LYRICS', payload: { track, artist, youtube_url } }
-                );
+                const res = await new Promise(resolve => {
+                    chrome.runtime.sendMessage(
+                        { type: 'GET_LYRICS', payload: { track, artist, youtube_url, video_id } },
+                        resolve
+                    );
+                });
 
                 console.log('[CS] GET_LYRICS response:', res);
 
-                if (res?.success) {
-                    data = res.lyrics || '';
-                    if (data) storage.set(currentKey, data);
+                if (res?.success && typeof res.lyrics === 'string' && res.lyrics.trim()) {
+                    data = res.lyrics;
+                    gotLyrics = true;
+
+                    if (Array.isArray(res.dynamicLines) && res.dynamicLines.length) {
+                        dynamicLines = res.dynamicLines;
+                    }
+
+                    if (thisKey === currentKey) {
+                        if (dynamicLines) {
+                            storage.set(thisKey, {
+                                lyrics: data,
+                                dynamicLines,
+                                noLyrics: false
+                            });
+                        } else {
+                            storage.set(thisKey, data);
+                        }
+                    }
                 } else {
-                    console.warn('Lyrics API failed:', res?.error);
+                    console.warn('Lyrics API returned no lyrics or success=false');
                 }
             } catch (e) {
                 console.warn('Lyrics API fetch failed', e);
             }
+
+            if (!gotLyrics && thisKey === currentKey) {
+                storage.set(thisKey, NO_LYRICS_SENTINEL);
+                noLyricsCached = true;
+            }
         }
+
+        if (thisKey !== currentKey) return;
 
         if (!data) {
             renderLyrics([]);
@@ -789,6 +833,8 @@
             finalLines = await applyTranslations(parsed, videoUrl);
         }
 
+        if (thisKey !== currentKey) return;
+
         lyricsData = finalLines;
         renderLyrics(finalLines);
     }
@@ -796,6 +842,7 @@
     function renderLyrics(data) {
         if (!ui.lyrics) return;
         ui.lyrics.innerHTML = '';
+        ui.lyrics.scrollTop = 0;
 
         const hasData = Array.isArray(data) && data.length > 0;
         document.body.classList.toggle('ytm-no-lyrics', !hasData);
@@ -831,9 +878,26 @@
             return;
         }
 
-        data.forEach(line => {
+        data.forEach((line, index) => {
             const row = createEl('div', '', 'lyric-line');
-            const mainSpan = createEl('span', '', '', line.text);
+            const mainSpan = createEl('span', '', 'lyric-main');
+
+            const dyn = dynamicLines && dynamicLines[index];
+            if (dyn && Array.isArray(dyn.chars) && dyn.chars.length) {
+                dyn.chars.forEach((ch, ci) => {
+                    const chSpan = createEl('span', '', 'lyric-char');
+                    chSpan.textContent = ch.c;
+                    chSpan.dataset.charIndex = String(ci);
+                    if (typeof ch.t === 'number') {
+                        chSpan.dataset.time = String(ch.t / 1000);
+                    }
+                    chSpan.classList.add('char-pending');
+                    mainSpan.appendChild(chSpan);
+                });
+            } else {
+                mainSpan.textContent = line.text;
+            }
+
             row.appendChild(mainSpan);
 
             if (line.translation) {
@@ -863,12 +927,41 @@
         e.target.value = '';
     };
 
-    document.addEventListener('timeupdate', (e) => {
+    function startLyricRafLoop() {
+        if (lyricRafId !== null) return;
+
+        const loop = () => {
+            const v = document.querySelector('video');
+            if (!v || v.readyState === 0) {
+                lyricRafId = requestAnimationFrame(loop);
+                return;
+            }
+
+            if (
+                document.body.classList.contains('ytm-custom-layout') &&
+                lyricsData.length &&
+                hasTimestamp &&
+                !v.paused &&
+                !v.ended
+            ) {
+                const t = v.currentTime;
+                if (t !== lastTimeForChars) {
+                    lastTimeForChars = t;
+                    updateLyricHighlight(t);
+                }
+            }
+
+            lyricRafId = requestAnimationFrame(loop);
+        };
+
+        lyricRafId = requestAnimationFrame(loop);
+    }
+
+    function updateLyricHighlight(currentTime) {
         if (!document.body.classList.contains('ytm-custom-layout') || !lyricsData.length) return;
-        if (e.target.tagName !== 'VIDEO') return;
         if (!hasTimestamp) return;
 
-        const t = e.target.currentTime;
+        const t = currentTime;
         let idx = lyricsData.findIndex(l => l.time > t) - 1;
         if (idx < 0) idx = lyricsData[lyricsData.length - 1].time <= t ? lyricsData.length - 1 : -1;
 
@@ -877,26 +970,108 @@
         const isInterlude = current && next && (next.time - current.time > 10) && (t - current.time > 6);
 
         const rows = document.querySelectorAll('.lyric-line');
+
         rows.forEach((r, i) => {
             if (i === idx && !isInterlude) {
+                const firstActivate = (i !== lastActiveIndex);
+
                 if (!r.classList.contains('active')) {
                     r.classList.add('active');
-                    if (r.classList.contains('has-translation')) {
-                        r.classList.add('show-translation');
-                    }
+                }
+                if (r.classList.contains('has-translation')) {
+                    r.classList.add('show-translation');
+                }
+
+                if (firstActivate) {
                     r.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                } else {
-                    if (r.classList.contains('has-translation')) {
-                        r.classList.add('show-translation');
-                    }
+                }
+
+                if (dynamicLines && dynamicLines[i] && Array.isArray(dynamicLines[i].chars)) {
+                    const charSpans = r.querySelectorAll('.lyric-char');
+                    charSpans.forEach(sp => {
+                        const tt = parseFloat(sp.dataset.time || '0');
+                        if (!Number.isFinite(tt)) return;
+
+                        if (tt <= t) {
+                            if (!sp.classList.contains('char-active')) {
+                                sp.classList.add('char-active');
+                                sp.classList.remove('char-pending');
+                            }
+                        } else {
+                            if (!sp.classList.contains('char-pending')) {
+                                sp.classList.remove('char-active');
+                                sp.classList.add('char-pending');
+                            }
+                        }
+                    });
                 }
             } else {
                 r.classList.remove('active');
                 r.classList.remove('show-translation');
+
+                if (dynamicLines && dynamicLines[i]) {
+                    const charSpans = r.querySelectorAll('.lyric-char');
+                    charSpans.forEach(sp => {
+                        if (!sp.classList.contains('char-pending')) {
+                            sp.classList.remove('char-active');
+                            sp.classList.add('char-pending');
+                        }
+                    });
+                }
             }
         });
-    }, true);
+
+        lastActiveIndex = isInterlude ? -1 : idx;
+    }
+
+    const tick = async () => {
+        if (!document.getElementById('my-mode-toggle')) {
+            const rc = document.querySelector('.right-controls-buttons');
+            if (rc) {
+                const btn = createEl('button', 'my-mode-toggle', '', 'IMMERSION');
+                btn.onclick = () => {
+                    config.mode = !config.mode;
+                    document.body.classList.toggle('ytm-custom-layout', config.mode);
+                };
+                rc.prepend(btn);
+            }
+        }
+
+        const layout = document.querySelector('ytmusic-app-layout');
+        const isPlayerOpen = layout?.hasAttribute('player-page-open');
+
+        if (!config.mode || !isPlayerOpen) {
+            document.body.classList.remove('ytm-custom-layout');
+            return;
+        }
+
+        document.body.classList.add('ytm-custom-layout');
+        initLayout();
+
+        const meta = getMetadata();
+        if (!meta) return;
+
+        const key = `${meta.title}///${meta.artist}`;
+        if (currentKey !== key) {
+            currentKey = key;
+            lyricsData = [];
+            updateMetaUI(meta);
+            if (ui.lyrics) ui.lyrics.scrollTop = 0;
+            loadLyrics(meta);
+        }
+    };
+
+    function updateMetaUI(meta) {
+        ui.title.innerText = meta.title;
+        ui.artist.innerText = meta.artist;
+        if (meta.src) {
+            ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
+            ui.bg.style.backgroundImage = `url(${meta.src})`;
+        }
+        ui.lyrics.innerHTML = '<div style="opacity:0.5; padding:20px;">Loading...</div>';
+    }
 
     console.log("YTM Immersion loaded.");
     setInterval(tick, 1000);
+    startLyricRafLoop();
 })();
