@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "YouTube Music Modern UI for Firefox",
-  "version": "0.0.3b",
+  "version": "1.202511.0-beta",
   "description": "YouTube Musicをもっと美しく",
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "YTM_ModernUI_Firefox@miot26"
+      "id": "YTMusic-Modern-Firefox@miot26"
     }
   },
 
@@ -26,14 +26,14 @@
     
 
   "background": {
-    "scripts": ["js/background.js"]
+    "scripts": ["src/js/background.js"]
   },
 
   "content_scripts": [
     {
       "matches": ["https://music.youtube.com/*"],
-      "js": ["js/content.js"],
-      "css": ["css/style.css"],
+      "js": ["src/js/content.js"],
+      "css": ["src/css/style.css"],
       "run_at": "document_idle"
     }
   ],
@@ -41,7 +41,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "assets/fonts/InterVariable.woff2"
+        "src/assets/fonts/InterVariable.woff2"
       ],
       "matches": ["<all_urls>"]
     }
