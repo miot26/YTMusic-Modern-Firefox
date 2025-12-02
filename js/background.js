@@ -127,6 +127,71 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     return `${mm}:${ss}.${cc}`;
   };
 
+  const fetchFromGithub = (video_id) => {
+    if (!video_id) return Promise.resolve('');
+    const repo = String(video_id).trim();
+    if (!repo) return Promise.resolve('');
+    const rawUrl = `https://raw.githubusercontent.com/LRCHub/${encodeURIComponent(repo)}/main/README.md`;
+    console.log('[BG] GitHub fallback URL:', rawUrl);
+
+    return fetch(rawUrl)
+      .then(r => (r.ok ? r.text() : ''))
+      .then(text => {
+        const lyrics = (text || '').trim();
+        console.log('[BG] GitHub lyrics length:', lyrics.length);
+        return lyrics;
+      })
+      .catch(err => {
+        console.error('[BG] GitHub fallback error:', err);
+        return '';
+      });
+  };
+
+  const fetchFromLrchubWithTimeout = (track, artist, youtube_url, video_id, timeoutMs) => {
+    return new Promise((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        console.warn('[BG] LRCHub timeout, returning empty result');
+        resolve({
+          lyrics: '',
+          dynamicLines: null,
+          hasSelectCandidates: false,
+          candidates: [],
+          timedOut: true
+        });
+      }, timeoutMs || 30000);
+
+      fetchFromLrchub(track, artist, youtube_url, video_id)
+        .then(res => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(res || {
+            lyrics: '',
+            dynamicLines: null,
+            hasSelectCandidates: false,
+            candidates: []
+          });
+        })
+        .catch(err => {
+          console.error('[BG] fetchFromLrchub error:', err);
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({
+            lyrics: '',
+            dynamicLines: null,
+            hasSelectCandidates: false,
+            candidates: [],
+            timedOut: false,
+            error: err.toString()
+          });
+        });
+    });
+  };
+
   const fetchCandidatesFromUrl = (url) => {
     if (!url) {
       return Promise.resolve({ candidates: [], hasSelectCandidates: false });
@@ -278,7 +343,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
 
     console.log('[BG] GET_LYRICS', { track, artist, youtube_url, video_id });
 
-    fetchFromLrchub(track, artist, youtube_url, video_id)
+    fetchFromLrchubWithTimeout(track, artist, youtube_url, video_id, 30000)
       .then(lrchubRes => {
         if (lrchubRes.lyrics && lrchubRes.lyrics.trim()) {
           console.log(
@@ -293,9 +358,42 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
             lyrics: lrchubRes.lyrics,
             dynamicLines: lrchubRes.dynamicLines || null,
             hasSelectCandidates: lrchubRes.hasSelectCandidates || false,
-            candidates: lrchubRes.candidates || []
+            candidates: lrchubRes.candidates || [],
+            fallbackSource: null
           });
           return null;
+        }
+
+        if (lrchubRes.timedOut) {
+          console.log('[BG] LRCHub timeout, fallback to GitHub repo');
+
+          return fetchFromGithub(video_id).then(githubLyrics => {
+            if (githubLyrics && githubLyrics.trim()) {
+              sendResponse({
+                success: true,
+                lyrics: githubLyrics,
+                dynamicLines: null,
+                hasSelectCandidates: false,
+                candidates: [],
+                fallbackSource: 'github'
+              });
+              return null;
+            }
+
+            console.log('[BG] GitHub empty, fallback to LrcLib');
+            return fetchFromLrcLib(track, artist).then(lrclibLyrics => {
+              const ok = !!(lrclibLyrics && lrclibLyrics.trim());
+              sendResponse({
+                success: ok,
+                lyrics: lrclibLyrics || '',
+                dynamicLines: null,
+                hasSelectCandidates: false,
+                candidates: [],
+                fallbackSource: ok ? 'lrclib' : null
+              });
+              return null;
+            });
+          });
         }
 
         console.log('[BG] LRCHub empty, fallback to LrcLib');
@@ -306,14 +404,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
             lyrics: lrclibLyrics || '',
             dynamicLines: null,
             hasSelectCandidates: false,
-            candidates: []
+            candidates: [],
+            fallbackSource: ok ? 'lrclib' : null
           });
           return null;
         });
-      })
-      .catch(err => {
-        console.error('Lyrics API Error:', err);
-        sendResponse({ success: false, error: err.toString() });
       });
 
     return true;

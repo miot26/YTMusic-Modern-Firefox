@@ -28,13 +28,15 @@
     lyrics: null, input: null, settings: null,
     btnArea: null, uploadMenu: null, deleteDialog: null,
     settingsBtn: null,
-    lyricsBtn: null
+    lyricsBtn: null,
+    fallbackToast: null
   };
 
   let hideTimer = null;
   let uploadMenuGlobalSetup = false;
   let deleteDialogGlobalSetup = false;
   let settingsOutsideClickSetup = false;
+  let fallbackToastTimer = null;
 
   const handleInteraction = () => {
     if (!ui.btnArea) return;
@@ -156,7 +158,6 @@
     return kinds >= 2;
   };
 
-  // 文字ごとのスクリプト判定
   const detectCharScript = (ch) => {
     if (!ch) return 'OTHER';
     if (/[A-Za-z]/.test(ch)) return 'LATIN';
@@ -165,7 +166,6 @@
     return 'OTHER';
   };
 
-  // スクリプトごとに文字列をセグメント化
   const segmentByScript = (s) => {
     const result = [];
     if (!s) return result;
@@ -190,7 +190,6 @@
     return result;
   };
 
-  // 言語が入り交じってるときの翻訳動作（翻訳されない問題を修正する大事なやつ！）
   const shouldTranslateSegment = (script, langCode) => {
     const lang = (langCode || '').toLowerCase();
     if (script === 'OTHER') return false;
@@ -206,7 +205,6 @@
         return script !== 'LATIN';
     }
   };
-
 
   const translateMixedSegments = async (lines, indexes, langCode, targetLang) => {
     try {
@@ -306,7 +304,6 @@
 
       let translated = res.translations.map(t => t.text || '');
 
-      // 部分翻訳 のやつ！
       const fallbackIndexes = [];
       for (let i = 0; i < lines.length; i++) {
         const src = baseTexts[i];
@@ -377,6 +374,25 @@
     if (html !== undefined && html !== null) el.innerHTML = html;
     return el;
   };
+
+  function showFallbackToast(message) {
+    let toast = ui.fallbackToast || document.getElementById('ytm-fallback-toast');
+    if (!toast) {
+      toast = createEl('div', 'ytm-fallback-toast', '', '');
+      document.body.appendChild(toast);
+      ui.fallbackToast = toast;
+    } else {
+      ui.fallbackToast = toast;
+    }
+
+    toast.textContent = message;
+    toast.classList.add('visible');
+
+    if (fallbackToastTimer) clearTimeout(fallbackToastTimer);
+    fallbackToastTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 5000);
+  }
 
   function setupAutoHideEvents() {
     if (document.body.dataset.autohideSetup) return;
@@ -1076,6 +1092,10 @@
 
         console.log('[CS] GET_LYRICS response:', res);
 
+        if (res && res.fallbackSource === 'github') {
+          showFallbackToast('LRCHub が 30 秒以内に応答しなかったため、GitHub から歌詞を取得しました');
+        }
+
         if (Array.isArray(res?.candidates) && res.candidates.length) {
           lyricsCandidates = res.candidates;
         } else {
@@ -1293,7 +1313,6 @@
     lastActiveIndex = isInterlude ? -1 : idx;
   }
 
-
   const tick = async () => {
     if (!document.getElementById('my-mode-toggle')) {
       const rc = document.querySelector('.right-controls-buttons');
@@ -1318,7 +1337,6 @@
     document.body.classList.add('ytm-custom-layout');
     initLayout();
 
-    // ensure slider host is inset so visual track lines up with rounded corners
     (function patchSliders() {
       const sliders = document.querySelectorAll('ytmusic-player-bar .middle-controls tp-yt-paper-slider');
       sliders.forEach(s => {
@@ -1328,7 +1346,6 @@
           s.style.paddingRight = '20px';
           s.style.minWidth = '0';
         } catch (e) {
-          // ignore
         }
       });
     })();

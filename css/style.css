@@ -47,7 +47,7 @@ body.ytm-custom-layout #ytm-custom-bg {
   animation: ytmBgDrift 40s ease-in-out infinite alternate;
 }
 
-
+/* Lyrics候補バッジ用の軽いアニメ */
 @keyframes ytmLyricsBounce {
   0%, 100% { transform: translateY(0); }
   30% { transform: translateY(-2px); }
@@ -95,6 +95,7 @@ body.ytm-custom-layout.ytm-no-lyrics #ytm-custom-left-col {
   transition: transform 0.5s ease;
 }
 
+/* 元の YTM UI を隠す（ナビ以外） */
 body.ytm-custom-layout #player-bar-background,
 body.ytm-custom-layout #guide-wrapper,
 body.ytm-custom-layout ytmusic-mini-guide-renderer,
@@ -108,6 +109,7 @@ body.ytm-custom-layout .side-panel {
   pointer-events: none !important;
 }
 
+/* ナビバーだけ残す */
 body.ytm-custom-layout ytmusic-nav-bar {
   visibility: visible !重要;
   opacity: 1 !important;
@@ -135,6 +137,7 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-left: 96px;
 }
 
+/* 左カラム（横向き：大きいジャケット＋中央寄せタイトル） */
 #ytm-custom-left-col {
   display: flex;
   flex-direction: column;
@@ -159,6 +162,7 @@ body.ytm-custom-layout ytmusic-search-box {
   object-fit: cover;
 }
 
+/* 曲情報（横向き：中央寄せ） */
 #ytm-custom-info-area {
   display: flex;
   flex-direction: column;
@@ -184,6 +188,7 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-bottom: 24px;
 }
 
+/* 上部の Lyrics / ゴミ箱 / 設定 ボタン */
 #ytm-btn-area {
   display: flex;
   gap: 10px;
@@ -312,7 +317,7 @@ body.ytm-custom-layout ytmusic-search-box {
   transform: translateX(18px);
 }
 
-
+/* 言語ピル */
 .ytm-lang-section {
   margin-top: 10px;
 }
@@ -417,6 +422,7 @@ body.ytm-custom-layout ytmusic-search-box {
   font-weight: 600;
 }
 
+/* タイムスタンプ有り時の翻訳アニメ */
 body.ytm-custom-layout.ytm-has-timestamp .lyric-line .lyric-translation {
   opacity: 0;
   max-height: 0;
@@ -434,7 +440,7 @@ body.ytm-custom-layout.ytm-has-timestamp .lyric-line.show-translation .lyric-tra
   margin-top: 6px;
 }
 
-/* 1文字ずつ光るしゃれおつな演出 */
+/* 1文字ずつ光る演出 */
 body.ytm-custom-layout .lyric-line .lyric-char {
   display: inline-block;
   transition:
@@ -465,7 +471,7 @@ body.ytm-custom-layout.ytm-no-timestamp .lyric-line {
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
-/* Loading  */
+/* Loading / 歌詞なしメッセージ */
 .lyric-loading {
   display: flex;
   flex-direction: column;
@@ -513,17 +519,18 @@ body.ytm-custom-layout ytmusic-player-bar {
   overflow: visible !important;
 }
 
-/* 再生ボタン */
+/* 左側：前後 / 再生ボタン */
 body.ytm-custom-layout .left-controls {
   flex: 0 0 auto !important;
   justify-content: flex-start !important;
 }
 
+/* 中央側の再生ボタンは隠す（2 個目を消す） */
 body.ytm-custom-layout ytmusic-player-bar .middle-controls ytmusic-play-button-renderer {
   display: none !important;
 }
 
-/* シークバー */
+/* 中央エリア：シークバー中心 */
 body.ytm-custom-layout .middle-controls {
   flex: 1 1 auto !important;
   justify-content: center !important;
@@ -888,7 +895,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
 }
 
 /* =========================================
- * 縦長ディスプレイ専用だよ
+ * 縦画面レイアウト（Apple Music 風）
  * ======================================= */
 @media (orientation: portrait) {
   body.ytm-custom-layout #ytm-custom-wrapper {
@@ -899,7 +906,6 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
     gap: 24px;
   }
 
-  /* 高さそろえて見栄えを良くする */
   body.ytm-custom-layout #ytm-custom-left-col {
     width: 100%;
     max-width: 520px;
@@ -942,14 +948,12 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
     text-align: left;
   }
 
-  /* ゴミ箱 ボタン */
   body.ytm-custom-layout #ytm-btn-area {
     justify-content: flex-start;
     margin-top: 6px;
     gap: 8px;
   }
 
-  /* 歌詞をヘッダー野下へ */
   body.ytm-custom-layout #my-lyrics-container {
     width: 100%;
     max-width: 520px;
@@ -957,7 +961,6 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
     padding-top: 10vh;
   }
 
-  /* プレイヤバー */
   body.ytm-custom-layout ytmusic-player-bar {
     width: 100% !important;
     max-width: 640px !important;
@@ -965,4 +968,32 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
     left: 50% !important;
     transform: translateX(-50%) !important;
   }
+}
+
+/* =========================================
+ * フォールバック通知トースト
+ * ======================================= */
+#ytm-fallback-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(15, 15, 20, 0.9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  z-index: 3000;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease-out,
+    transform 0.25s ease-out;
+}
+
+#ytm-fallback-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
