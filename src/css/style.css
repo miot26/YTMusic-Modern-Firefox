@@ -309,6 +309,68 @@ body.ytm-custom-layout .lyric-line.active .lyric-char.char-active {
     text-shadow: 0 0 12px rgba(255,255,255,0.8);
 }
 
+body.ytm-share-select-mode #my-lyrics-container {
+  cursor: default;
+}
+
+body.ytm-share-select-mode #my-lyrics-container {
+  cursor: default;
+}
+
+body.ytm-share-select-mode .lyric-line {
+  cursor: crosshair;
+}
+
+body.ytm-share-select-mode .lyric-line.share-select-range {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  filter: none;
+}
+
+body.ytm-share-select-mode .lyric-line.share-select-start::before,
+body.ytm-share-select-mode .lyric-line.share-select-end::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 10%;
+  bottom: 10%;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+body.ytm-share-select-mode .lyric-line.share-select-end::before {
+  background: rgba(0, 200, 255, 0.8);
+}
+
+#ytm-share-hint {
+  position: absolute;
+  top: 18px;
+  right: 32px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(15, 15, 20, 0.9);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+body.ytm-share-select-mode #ytm-share-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+body.ytm-custom-layout #ytm-share-hint {
+    top: 70px;
+    right: 20px;
+}
+
 /* --- プレイヤーバー --- */
 body.ytm-custom-layout ytmusic-player-bar {
   display: grid !important;
@@ -674,7 +736,6 @@ body.ytm-custom-layout.ytm-no-timestamp .lyric-line {
     text-shadow: 0 0 10px rgba(0,0,0,0.3);
 }
 
-/* 非 Immersion */
 /* 非 Immersion モード */
 body:not(.ytm-custom-layout) ytmusic-player-bar {
   background: rgba(20, 20, 20, 0.4) !important;
@@ -752,4 +813,38 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
 body.ytm-custom-layout ytmusic-popup-container,
 body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
     z-index: 3000 !important;
+}
+
+#ytm-fallback-toast,
+#ytm-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(15, 15, 20, 0.9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  z-index: 3000;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+#ytm-fallback-toast.visible,
+#ytm-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ytm-upload-menu-item.ytm-upload-menu-item-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* もし hover 時の色変化も止めたいなら上書き */
+.ytm-upload-menu-item.ytm-upload-menu-item-disabled:hover {
+  background: transparent;
 }
