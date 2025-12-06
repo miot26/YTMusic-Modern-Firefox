@@ -85,6 +85,8 @@ const TEXTS = {
   let lastActiveIndex = -1;
   let lastTimeForChars = -1;
   let lyricRafId = null;
+  
+  let timeOffset = 0;
 
   let shareMode = false;
   let shareStartIndex = null;
@@ -1888,7 +1890,7 @@ const TEXTS = {
     e.target.value = '';
   };
 
-  function startLyricRafLoop() {
+ function startLyricRafLoop() {
     if (lyricRafId !== null) return;
     const loop = () => {
       const v = document.querySelector('video');
@@ -1896,8 +1898,18 @@ const TEXTS = {
         lyricRafId = requestAnimationFrame(loop);
         return;
       }
+
+     
+      let t = v.currentTime;
+
+   
+      if (timeOffset > 0 && t < timeOffset) {
+        timeOffset = 0;
+      }
+
+      t = Math.max(0, t - timeOffset);
+
       if (document.body.classList.contains('ytm-custom-layout') && lyricsData.length && hasTimestamp && !v.paused && !v.ended) {
-        const t = v.currentTime;
         if (t !== lastTimeForChars) {
           lastTimeForChars = t;
           updateLyricHighlight(t);
@@ -2225,7 +2237,18 @@ const TEXTS = {
     const meta = getMetadata();
     if (!meta) return;
     const key = `${meta.title}///${meta.artist}`;
+    
+
     if (currentKey !== key) {
+      
+      const v = document.querySelector('video');
+      if (currentKey === null) {
+        timeOffset = 0; 
+      } else {
+        timeOffset = v ? v.currentTime : 0; 
+      }
+  
+
       currentKey = key;
       lyricsData = [];
       dynamicLines = null;
@@ -2251,8 +2274,10 @@ const TEXTS = {
       if (ui.lyrics) ui.lyrics.scrollTop = 0;
       loadLyrics(meta);
     }
-  };
-
+    
+      };
+  
+  
   function updateMetaUI(meta) {
     ui.title.innerText = meta.title;
     ui.artist.innerText = meta.artist;
