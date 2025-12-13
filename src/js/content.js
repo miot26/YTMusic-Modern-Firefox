@@ -705,13 +705,17 @@
     _api: chrome?.storage?.local,
     get: (k) => new Promise(r => {
       if (!storage._api) return r(null);
-      storage._api.get([k], res => r(res[k] || null));
+      storage._api.get([k], res => {
+        // ★修正: res[k] || null だと false が null になってしまうため修正
+        const val = res ? res[k] : undefined;
+        r(val !== undefined ? val : null);
+      });
     }),
     set: (k, v) => { if (storage._api) storage._api.set({ [k]: v }); },
     remove: (k) => { if (storage._api) storage._api.remove(k); },
     clear: () => confirm('全データを削除しますか？') && storage._api?.clear(() => location.reload())
   };
-
+  
   const ReplayManager = {
     HISTORY_KEY: 'ytm_local_history',
     currentVideoId: null,
@@ -1147,7 +1151,7 @@
     }
   };
 
-  // ===================== QueueManager =====================
+ 
   const QueueManager = {
     observer: null,
 
@@ -1215,7 +1219,7 @@
       }
     },
 
-    syncQueue: function () {
+   syncQueue: function () {
       if (!ui.queuePanel) return;
       if (!this.observer) this.startObserver();
 
@@ -1246,6 +1250,31 @@
         const title = titleEl.textContent.trim();
         const artist = artistEl ? artistEl.textContent.trim() : '';
         
+       
+        if (idx === 1) {
+            const prefetchKey = `${title}///${artist}`;
+            storage.get(prefetchKey).then(cached => {
+                if (!cached) {
+                    console.log('[Queue] Prefetching lyrics for:', title);
+                    chrome.runtime.sendMessage({ 
+                        type: 'GET_LYRICS', 
+                        payload: { track: title, artist: artist } 
+                    }, (res) => {
+                  
+                        if (res && res.success && res.lyrics) {
+                            storage.set(prefetchKey, {
+                                lyrics: res.lyrics,
+                                dynamicLines: res.dynamicLines || null,
+                                candidates: res.candidates || null,
+                            
+                            });
+                        }
+                    });
+                }
+            });
+        }
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
         const uniqueKey = `${title}///${artist}`;
         if (seenKeys.has(uniqueKey)) return;
         seenKeys.add(uniqueKey);
@@ -1293,8 +1322,307 @@
   };
 
 
+  const PipManager = {
+    pipWindow: null,
+    pipLyricsContainer: null,
+    progressRing: null,
+    playButton: null,
+    
+    icons: {
+      play: '<svg class="icon" viewBox="0 0 24 24" fill="#fff" style="width:28px;height:28px;"><path d="M8 5v14l11-7z"/></svg>',
+      pause: '<svg class="icon" viewBox="0 0 24 24" fill="#fff" style="width:28px;height:28px;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+    },
 
-  // ===================== DeepL / LRC / 翻訳関連 =====================
+    toggle: async function() {
+      if (this.pipWindow) {
+        this.pipWindow.close();
+        return;
+      }
+      await this.start();
+    },
+
+    start: async function() {
+      if (!window.documentPictureInPicture) return;
+      if (!ui.lyrics) return;
+
+      try {
+        this.pipWindow = await window.documentPictureInPicture.requestWindow({
+          width: 380, height: 600,
+        });
+      } catch (e) {
+        console.error('PiP failed:', e);
+        return;
+      }
+
+      [...document.styleSheets].forEach((styleSheet) => {
+        try {
+          if (styleSheet.href) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.type = styleSheet.type;
+            link.media = styleSheet.media;
+            link.href = styleSheet.href;
+            this.pipWindow.document.head.appendChild(link);
+          }
+        } catch (e) {}
+      });
+
+      const pipDoc = this.pipWindow.document;
+
+      const forceStyle = document.createElement('style');
+      forceStyle.textContent = `
+        body {
+          margin: 0; overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+          background: #000; color: #fff;
+          cursor: default;
+        }
+        @keyframes bgFloat {
+          0% { transform: scale(1.4) rotate(0deg); }
+          50% { transform: scale(1.6) rotate(8deg); }
+          100% { transform: scale(1.4) rotate(0deg); }
+        }
+        #pip-bg-layer {
+          position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
+          z-index: -2;
+          background-size: cover; background-position: center;
+          filter: blur(60px) saturate(240%) brightness(0.7);
+          animation: bgFloat 45s ease-in-out infinite;
+          opacity: 1; transition: background-image 0.8s ease;
+        }
+        #pip-noise-layer {
+          position: fixed; inset: 0; z-index: -1;
+          opacity: 0.06; pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+        #pip-bg-overlay {
+          position: fixed; inset: 0; z-index: -1;
+          background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5));
+        }
+        .lyric-line {
+          color: rgba(255, 255, 255, 0.5) !important;
+          font-size: 26px !important; font-weight: 700 !important;
+          margin-bottom: 30px !important; line-height: 1.35 !important;
+          transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+          filter: blur(0.8px); transform: scale(0.96);
+          text-align: center !important; width: 100%;
+          cursor: pointer !important; /* クリックできる感出す */
+          letter-spacing: -0.01em;
+        }
+        .lyric-line:hover {
+          color: rgba(255, 255, 255, 0.8) !important; /* ホバーで少し明るく */
+        }
+        .lyric-line.active {
+          color: #ffffff !important; filter: blur(0) !important;
+          transform: scale(1.08) !important; 
+          text-shadow: 0 0 40px rgba(255, 255, 255, 0.5) !important;
+          opacity: 1 !important;
+        }
+        .lyric-translation { font-size: 0.65em; opacity: 0.7; font-weight: 600; margin-top: 6px; display: block; }
+        #pip-lyrics-container::-webkit-scrollbar { display: none; }
+        #pip-lyrics-container { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        #pip-controls {
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        body:hover #pip-controls {
+            opacity: 1; transform: translateY(0);
+        }
+        .pip-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
+            color: #fff; width: 50px; height: 50px; border-radius: 50%;
+            cursor: pointer; backdrop-filter: blur(20px);
+            transition: 0.2s; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+        .pip-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
+        .pip-btn:active { transform: scale(0.95); }
+        .pip-btn-play {
+            width: 70px; height: 70px; position: relative;
+            background: rgba(255,255,255,0.15);
+        }
+        .pip-btn-play svg.icon { width: 30px; height: 30px; }
+        .progress-ring {
+            position: absolute; top: 0; left: 0; width: 70px; height: 70px;
+            transform: rotate(-90deg); pointer-events: none;
+        }
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.1s linear;
+            stroke: rgba(255, 255, 255, 0.9);
+            stroke-width: 3;
+            fill: transparent;
+            stroke-linecap: round;
+        }
+      `;
+      pipDoc.head.appendChild(forceStyle);
+      pipDoc.body.className = 'ytm-pip-mode';
+      
+      const bgLayer = document.createElement('div'); bgLayer.id = 'pip-bg-layer';
+      pipDoc.body.appendChild(bgLayer);
+      const noiseLayer = document.createElement('div'); noiseLayer.id = 'pip-noise-layer';
+      pipDoc.body.appendChild(noiseLayer);
+      const bgOverlay = document.createElement('div'); bgOverlay.id = 'pip-bg-overlay';
+      pipDoc.body.appendChild(bgOverlay);
+
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.height = '100vh';
+      container.style.width = '100vw'; 
+      container.style.zIndex = '1';
+      container.style.alignItems = 'center'; 
+      pipDoc.body.appendChild(container);
+
+      const artworkUrl = ui.artwork.querySelector('img')?.src || '';
+      bgLayer.style.backgroundImage = `url(${artworkUrl})`;
+
+      const header = document.createElement('div');
+      header.style.width = '100%';
+      header.style.padding = '30px 20px 20px 20px';
+      header.style.textAlign = 'center';
+      header.style.flexShrink = '0';
+      header.style.display = 'flex';
+      header.style.flexDirection = 'column';
+      header.style.alignItems = 'center';
+      header.style.boxSizing = 'border-box';
+      header.innerHTML = `
+        <div style="width:130px; height:130px; border-radius:16px; overflow:hidden; margin: 0 auto 20px auto; box-shadow: 0 16px 50px rgba(0,0,0,0.5); transition: transform 0.3s;">
+            <img id="pip-img" src="${artworkUrl}" style="width:100%; height:100%; object-fit:cover;">
+        </div>
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+            <div id="pip-title" style="
+                font-size: 18px; font-weight: 800; color: #fff; 
+                margin-bottom: 6px; line-height: 1.3; text-align: center; width: 100%;
+                text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+                display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+            ">${ui.title.textContent}</div>
+            <div id="pip-artist" style="
+                font-size: 14px; color: rgba(255,255,255,0.85); text-align: center; width: 100%;
+                text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            ">${ui.artist.textContent}</div>
+        </div>
+      `;
+      container.appendChild(header);
+
+      this.pipLyricsContainer = document.createElement('div');
+      this.pipLyricsContainer.id = 'pip-lyrics-container';
+      this.pipLyricsContainer.style.height = '100%';
+      this.pipLyricsContainer.style.overflowY = 'auto';
+      this.pipLyricsContainer.style.padding = '10px 24px 140px 24px'; 
+      this.pipLyricsContainer.style.flex = '1';
+      this.pipLyricsContainer.style.width = '100%';
+      this.pipLyricsContainer.style.boxSizing = 'border-box'; 
+      this.pipLyricsContainer.style.maskImage = 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)';
+      this.pipLyricsContainer.style.textAlign = 'center';
+      this.pipLyricsContainer.innerHTML = ui.lyrics.innerHTML;
+      container.appendChild(this.pipLyricsContainer);
+
+      // ★★★ 追加ポイント: PiP内での歌詞クリック検知 ★★★
+      this.pipLyricsContainer.addEventListener('click', (e) => {
+        // クリックされた要素の親をたどって、歌詞行(.lyric-line)を探す
+        const target = e.target.closest('.lyric-line');
+        if (!target) return;
+
+        // 埋め込まれた時間を取得
+        const timeStr = target.dataset.startTime;
+        if (timeStr) {
+            const time = parseFloat(timeStr);
+            if (!isNaN(time)) {
+                // 本体のプレイヤーを操作
+                const v = document.querySelector('video');
+                if (v) {
+                    v.currentTime = time + timeOffset; // ズレ補正も考慮してジャンプ
+                }
+            }
+        }
+      });
+      // ★★★★★★★★★★★★★★★★★★★★★★★★★
+
+      const controls = document.createElement('div');
+      controls.id = 'pip-controls';
+      controls.style.boxSizing = 'border-box';
+      controls.style.padding = '30px';
+      controls.style.display = 'flex';
+      controls.style.justifyContent = 'center';
+      controls.style.alignItems = 'center';
+      controls.style.gap = '30px';
+      controls.style.position = 'absolute';
+      controls.style.bottom = '0';
+      controls.style.left = '0';
+      controls.style.width = '100%';
+      controls.style.background = 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)';
+      
+      const mkBtn = (innerHtml, onClick, isPlay = false) => {
+        const b = document.createElement('button');
+        if (isPlay) {
+            b.className = 'pip-btn pip-btn-play';
+            b.innerHTML = `
+              <svg class="progress-ring" width="70" height="70">
+                <circle class="progress-ring__circle" stroke="white" stroke-width="3" fill="transparent" r="32" cx="35" cy="35" style="stroke-dasharray: 201; stroke-dashoffset: 201;"/>
+              </svg>
+              <span class="icon-wrap">${innerHtml}</span>
+            `;
+            setTimeout(() => { this.progressRing = b.querySelector('.progress-ring__circle'); }, 0);
+            this.playButton = b;
+        } else {
+            b.className = 'pip-btn';
+            b.innerHTML = innerHtml;
+        }
+        b.addEventListener('click', onClick);
+        return b;
+      };
+
+      controls.appendChild(mkBtn('<svg class="icon" viewBox="0 0 24 24" fill="#fff" width="24" height="24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>', () => document.querySelector('.previous-button')?.click()));
+      controls.appendChild(mkBtn(this.icons.play, () => document.querySelector('.play-pause-button')?.click(), true));
+      controls.appendChild(mkBtn('<svg class="icon" viewBox="0 0 24 24" fill="#fff" width="24" height="24"><path d="M6 18l8.5-6L6 6v12M16 6v12h2V6h-2z"/></svg>', () => document.querySelector('.next-button')?.click()));
+      
+      container.appendChild(controls);
+
+      startLyricRafLoop();
+
+      this.pipWindow.addEventListener('pagehide', () => {
+        this.pipWindow = null;
+        this.pipLyricsContainer = null;
+        this.progressRing = null;
+        this.playButton = null;
+        startLyricRafLoop();
+      });
+    },
+
+    updateMeta: function(title, artist) {
+      if (!this.pipWindow) return;
+      const pipDoc = this.pipWindow.document;
+      const tEl = pipDoc.getElementById('pip-title');
+      const aEl = pipDoc.getElementById('pip-artist');
+      const iEl = pipDoc.getElementById('pip-img');
+      const bgEl = pipDoc.getElementById('pip-bg-layer');
+      if (tEl) tEl.textContent = title;
+      if (aEl) aEl.textContent = artist;
+      if (ui.artwork.querySelector('img')) {
+          const src = ui.artwork.querySelector('img').src;
+          if (iEl) iEl.src = src;
+          if (bgEl) bgEl.style.backgroundImage = `url(${src})`;
+      }
+    },
+
+    resetLyrics: function() {
+      if (this.pipWindow && this.pipLyricsContainer) {
+        this.pipLyricsContainer.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
+      }
+    },
+
+    updatePlayState: function(isPaused) {
+      if (!this.pipWindow || !this.playButton) return;
+      const wrap = this.playButton.querySelector('.icon-wrap');
+      if (!wrap) return;
+      const targetIcon = isPaused ? this.icons.play : this.icons.pause;
+      if (wrap.innerHTML !== targetIcon) {
+        wrap.innerHTML = targetIcon;
+      }
+    }
+  };  
+          // ===================== DeepL / LRC / 翻訳関連 =====================
 
   const resolveDeepLTargetLang = (lang) => {
     switch ((lang || '').toLowerCase()) {
@@ -1312,43 +1640,60 @@
   const parseLRCInternal = (lrc) => {
     if (!lrc) return { lines: [], hasTs: false };
     const tagTest = /\[\d{2}:\d{2}\.\d{2,3}\]/;
+    
+    // タイムスタンプがない場合
     if (!tagTest.test(lrc)) {
       const lines = lrc.split(/\r?\n/).map(line => {
         const text = line.replace(/^\s+|\s+$/g, '');
-        return { time: null, text };
-      });
+        // ★修正: テキストが空なら null を返す
+        return text ? { time: null, text } : null;
+      }).filter(Boolean); // ★修正: null (空行) を配列から消す
       return { lines, hasTs: false };
     }
+
+    // タイムスタンプがある場合
     const tagExp = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g;
     const result = [];
     let match;
     let lastTime = null;
     let lastIndex = 0;
+    
     while ((match = tagExp.exec(lrc)) !== null) {
       const min = parseInt(match[1], 10);
       const sec = parseInt(match[2], 10);
       const fracStr = match[3];
       const frac = parseInt(fracStr, 10) / (fracStr.length === 2 ? 100 : 1000);
       const time = min * 60 + sec + frac;
+      
       if (lastTime !== null) {
         const rawText = lrc.slice(lastIndex, match.index);
         const cleaned = rawText.replace(/\r?\n/g, ' ');
         const text = cleaned.trim();
-        result.push({ time: lastTime, text });
+        // ★修正: テキストがある場合だけ追加する (空行無視)
+        if (text) {
+            result.push({ time: lastTime, text });
+        }
       }
       lastTime = time;
       lastIndex = tagExp.lastIndex;
     }
+    
+    // 最後の行の処理
     if (lastTime !== null && lastIndex < lrc.length) {
       const rawText = lrc.slice(lastIndex);
       const cleaned = rawText.replace(/\r?\n/g, ' ');
       const text = cleaned.trim();
-      result.push({ time: lastTime, text });
+      // ★修正: ここもテキストがある場合だけ追加
+      if (text) {
+          result.push({ time: lastTime, text });
+      }
     }
+    
     result.sort((a, b) => (a.time || 0) - (b.time || 0));
     return { lines: result, hasTs: true };
   };
-
+  
+  
   const parseBaseLRC = (lrc) => {
     const { lines, hasTs } = parseLRCInternal(lrc);
     hasTimestamp = hasTs;
@@ -1583,7 +1928,6 @@
     return null;
   };
 
-  // ===================== メタ情報取得 =====================
 
   const getMetadata = () => {
     if (navigator.mediaSession?.metadata) {
@@ -1949,7 +2293,6 @@
     }
   }
 
-  // ===================== Upload Menu / Delete Dialog / Settings =====================
 
   function setupUploadMenu(uploadBtn) {
     if (!ui.btnArea || ui.uploadMenu) return;
@@ -2130,16 +2473,29 @@
       
       <div class="setting-item ytm-lang-section">
         <div class="ytm-lang-label">${t('settings_ui_lang')}</div>
-        <div class="ytm-lang-group" id="ui-lang-group">
-        </div>
+        <div class="ytm-lang-group" id="ui-lang-group"></div>
       </div>
 
-      <div class="setting-item" style="margin-top:10px;">
+      <div class="setting-item" style="margin-top:15px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
+        <div class="ytm-lang-label" style="display:flex;justify-content:space-between;">
+            <span>歌詞の太さ (Weight)</span>
+            <span id="weight-val">${config.lyricWeight || 800}</span>
+        </div>
+        <input type="range" id="weight-slider" min="100" max="900" step="100" value="${config.lyricWeight || 800}" style="width:100%; cursor:pointer;">
+        
+        <div class="ytm-lang-label" style="display:flex;justify-content:space-between; margin-top:10px;">
+            <span>背景の明るさ (Brightness)</span>
+            <span id="bright-val">${Math.round((config.bgBrightness || 0.35)*100)}%</span>
+        </div>
+        <input type="range" id="bright-slider" min="0.1" max="1.0" step="0.05" value="${config.bgBrightness || 0.35}" style="width:100%; cursor:pointer;">
+      </div>
+      <div class="setting-item" style="margin-top:15px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
         <label class="toggle-label">
           <span>${t('settings_trans')}</span>
           <input type="checkbox" id="trans-toggle">
         </label>
       </div>
+      
       <div class="setting-item ytm-lang-section">
         <div class="ytm-lang-label">${t('settings_main_lang')}</div>
         <div class="ytm-lang-group" id="main-lang-group">
@@ -2168,40 +2524,80 @@
     `);
     document.body.appendChild(ui.settings);
 
-(async () => {
-  // ★ 追加：設定パネル初期化時にも GitHub から取得
-  await loadRemoteTextsFromGithub();
+    (async () => {
+      await loadRemoteTextsFromGithub();
+      if (!config.deepLKey) config.deepLKey = await storage.get('ytm_deepl_key');
+      const cachedTrans = await storage.get('ytm_trans_enabled');
+      if (cachedTrans !== null && cachedTrans !== undefined) config.useTrans = cachedTrans;
+      
+      const mainLangStored = await storage.get('ytm_main_lang');
+      if (mainLangStored) config.mainLang = mainLangStored;
+      const subLangStored = await storage.get('ytm_sub_lang');
+      if (subLangStored !== null) config.subLang = subLangStored;
+      const uiLangStored = await storage.get('ytm_ui_lang');
+      if (uiLangStored) config.uiLang = uiLangStored;
 
-  if (!config.deepLKey) config.deepLKey = await storage.get('ytm_deepl_key');
-  const cachedTrans = await storage.get('ytm_trans_enabled');
-  if (cachedTrans !== null && cachedTrans !== undefined) config.useTrans = cachedTrans;
-  const mainLangStored = await storage.get('ytm_main_lang');
-  const subLangStored = await storage.get('ytm_sub_lang');
-  if (mainLangStored) config.mainLang = mainLangStored;
-  if (subLangStored !== null && subLangStored !== undefined) config.subLang = subLangStored;
-  const uiLangStored = await storage.get('ytm_ui_lang');
-  if (uiLangStored) config.uiLang = uiLangStored;
+      // ★スライダー初期値反映
+      const weightStored = await storage.get('ytm_lyric_weight');
+      if (weightStored) config.lyricWeight = weightStored;
+      const brightStored = await storage.get('ytm_bg_brightness');
+      if (brightStored) config.bgBrightness = brightStored;
 
-  document.getElementById('deepl-key-input').value = config.deepLKey || '';
-  document.getElementById('trans-toggle').checked = config.useTrans;
+      // HTML要素への反映
+      document.getElementById('deepl-key-input').value = config.deepLKey || '';
+      document.getElementById('trans-toggle').checked = config.useTrans;
+      
+      const wSlider = document.getElementById('weight-slider');
+      const bSlider = document.getElementById('bright-slider');
+      
+      if(wSlider) {
+          wSlider.value = config.lyricWeight || 800;
+          document.getElementById('weight-val').textContent = wSlider.value;
+      }
+      if(bSlider) {
+          bSlider.value = config.bgBrightness || 0.35;
+          document.getElementById('bright-val').textContent = Math.round(bSlider.value * 100) + '%';
+      }
 
-  setupLangPills('main-lang-group', config.mainLang, v => { config.mainLang = v; });
-  setupLangPills('sub-lang-group', config.subLang, v => { config.subLang = v; });
+      setupLangPills('main-lang-group', config.mainLang, v => { config.mainLang = v; });
+      setupLangPills('sub-lang-group', config.subLang, v => { config.subLang = v; });
+      refreshUiLangGroup();
+      
+      // ★リアルタイムプレビュー
+      wSlider.addEventListener('input', (e) => {
+          const val = e.target.value;
+          document.getElementById('weight-val').textContent = val;
+          document.documentElement.style.setProperty('--ytm-lyric-weight', val);
+      });
+      bSlider.addEventListener('input', (e) => {
+          const val = e.target.value;
+          document.getElementById('bright-val').textContent = Math.round(val * 100) + '%';
+          document.documentElement.style.setProperty('--ytm-bg-brightness', val);
+      });
 
-  refreshUiLangGroup();
-})();
+    })();
 
     document.getElementById('save-settings-btn').onclick = () => {
       config.deepLKey = document.getElementById('deepl-key-input').value.trim();
       config.useTrans = document.getElementById('trans-toggle').checked;
+      
+      // ★設定保存
+      config.lyricWeight = document.getElementById('weight-slider').value;
+      config.bgBrightness = document.getElementById('bright-slider').value;
+      
       storage.set('ytm_deepl_key', config.deepLKey);
       storage.set('ytm_trans_enabled', config.useTrans);
       storage.set('ytm_main_lang', config.mainLang);
       storage.set('ytm_sub_lang', config.subLang);
       storage.set('ytm_ui_lang', config.uiLang);
+      
+      storage.set('ytm_lyric_weight', config.lyricWeight);
+      storage.set('ytm_bg_brightness', config.bgBrightness);
+
       alert(t('settings_saved'));
       location.reload();
     };
+    
     document.getElementById('clear-all-btn').onclick = storage.clear;
     const closeBtn = document.getElementById('ytm-settings-close-btn');
     if (closeBtn) {
@@ -2221,7 +2617,6 @@
       }, true);
     }
   }
-
   function createReplayPanel() {
     ui.replayPanel = createEl('div', 'ytm-replay-panel', '', `
       <button class="replay-close-btn">×</button>
@@ -2264,7 +2659,7 @@
     };
   }
 
-  function initLayout() {
+ function initLayout() {
     if (document.getElementById('ytm-custom-wrapper')) {
       ui.wrapper = document.getElementById('ytm-custom-wrapper');
       ui.bg = document.getElementById('ytm-custom-bg');
@@ -2290,6 +2685,13 @@
     const lyricsBtnConfig = { txt: 'Lyrics', cls: 'lyrics-btn', click: () => { } };
     const shareBtnConfig = { txt: 'Share', cls: 'share-btn', click: onShareButtonClick };
     
+    // ★追加: PiPボタン
+    const pipBtnConfig = {
+      txt: 'PIP', 
+      cls: 'icon-btn',
+      click: () => PipManager.toggle()
+    };
+
     const replayBtnConfig = {
       txt: '📊',
       cls: 'icon-btn',
@@ -2304,25 +2706,18 @@
 
     const trashBtnConfig = { txt: '🗑️', cls: 'icon-btn', click: () => { } };
     const settingsBtnConfig = {
-  txt: '⚙️',
-  cls: 'icon-btn',
-  click: async () => {
-    // パネルがなければ一度だけ生成
-    initSettings();
+      txt: '⚙️',
+      cls: 'icon-btn',
+      click: async () => {
+        initSettings();
+        await loadRemoteTextsFromGithub();
+        refreshUiLangGroup();
+        ui.settings.classList.toggle('active');
+      }
+    };
 
-    // ★ ここで毎回 GitHub の ui.json を取りに行く
-    await loadRemoteTextsFromGithub();
-
-    // 取得した UI_TEXTS をもとに言語ピルを作り直す
-    refreshUiLangGroup();
-
-    // パネルの開閉
-    ui.settings.classList.toggle('active');
-  }
-};
-
-
-    btns.push(lyricsBtnConfig, shareBtnConfig, replayBtnConfig, trashBtnConfig, settingsBtnConfig);
+    // ボタン配列に追加
+    btns.push(lyricsBtnConfig, shareBtnConfig, pipBtnConfig, replayBtnConfig, trashBtnConfig, settingsBtnConfig);
 
     btns.forEach(b => {
       const btn = createEl('button', '', `ytm-glass-btn ${b.cls || ''}`, b.txt);
@@ -2462,8 +2857,16 @@
     document.body.classList.toggle('ytm-no-lyrics', !hasData);
     document.body.classList.toggle('ytm-has-timestamp', hasTimestamp);
     document.body.classList.toggle('ytm-no-timestamp', !hasTimestamp);
+
+    const fragment = document.createDocumentFragment();
     data.forEach((line, index) => {
       const row = createEl('div', '', 'lyric-line');
+      
+    
+      if (typeof line.time === 'number') {
+          row.dataset.startTime = String(line.time);
+      }
+
       const mainSpan = createEl('span', '', 'lyric-main');
       const dyn = dynamicLines && dynamicLines[index];
       if (dyn && Array.isArray(dyn.chars) && dyn.chars.length) {
@@ -2486,6 +2889,7 @@
         row.appendChild(subSpan);
         row.classList.add('has-translation');
       }
+      
       row.onclick = () => {
         if (shareMode) {
           handleShareLineClick(index);
@@ -2493,14 +2897,21 @@
         }
         if (!hasTimestamp || line.time == null) return;
         const v = document.querySelector('video');
-        if (v) v.currentTime = line.time;
+        if (v) v.currentTime = line.time + timeOffset;
       };
-      ui.lyrics.appendChild(row);
+      fragment.appendChild(row);
     });
+    
+    ui.lyrics.appendChild(fragment);
+
+    if (PipManager.pipWindow && PipManager.pipLyricsContainer) {
+        PipManager.pipLyricsContainer.innerHTML = ui.lyrics.innerHTML;
+    }
+
     updateShareSelectionHighlight();
   }
-
-  const handleUpload = (e) => {
+  
+    const handleUpload = (e) => {
     const file = e.target.files[0];
     if (!file || !currentKey) return;
     const r = new FileReader();
@@ -2512,93 +2923,126 @@
     e.target.value = '';
   };
 
+
   function startLyricRafLoop() {
-    if (lyricRafId !== null) return;
+    if (lyricRafId) cancelAnimationFrame(lyricRafId);
+
     const loop = () => {
       const v = document.querySelector('video');
-      if (!v || v.readyState === 0) {
-        lyricRafId = requestAnimationFrame(loop);
-        return;
+      
+      if (v) {
+
+          if (PipManager.pipWindow) {
+             PipManager.updatePlayState(v.paused);
+          }
+
+          if (v.readyState > 0 && !v.paused && !v.ended) {
+              let t = v.currentTime;
+              const duration = v.duration || 1; 
+              
+              if (timeOffset > 0 && t < timeOffset) timeOffset = 0;
+              t = Math.max(0, t - timeOffset);
+              
+              if (lyricsData.length && hasTimestamp) {
+                updateLyricHighlight(t);
+              }
+
+
+              if (PipManager.pipWindow && PipManager.progressRing) {
+                  const radius = 32; 
+                  const circumference = radius * 2 * Math.PI; 
+                  const progress = t / duration;
+                  const offset = circumference - (progress * circumference);
+                  PipManager.progressRing.style.strokeDashoffset = offset;
+              }
+          }
       }
 
-      let t = v.currentTime;
-
-      if (timeOffset > 0 && t < timeOffset) {
-        timeOffset = 0;
+      if (PipManager.pipWindow) {
+          lyricRafId = PipManager.pipWindow.requestAnimationFrame(loop);
+      } else {
+          lyricRafId = requestAnimationFrame(loop);
       }
-
-      t = Math.max(0, t - timeOffset);
-
-      if (document.body.classList.contains('ytm-custom-layout') && lyricsData.length && hasTimestamp && !v.paused && !v.ended) {
-        if (t !== lastTimeForChars) {
-          lastTimeForChars = t;
-          updateLyricHighlight(t);
-        }
-      }
-      lyricRafId = requestAnimationFrame(loop);
     };
+    
     lyricRafId = requestAnimationFrame(loop);
   }
-
-  function updateLyricHighlight(currentTime) {
-    if (!document.body.classList.contains('ytm-custom-layout') || !lyricsData.length) return;
+      
+ function updateLyricHighlight(currentTime) {
+    if (!lyricsData.length) return;
     if (!hasTimestamp) return;
+    
     const t = currentTime;
-    let idx = lyricsData.findIndex(l => l.time > t) - 1;
-    if (idx < 0) idx = lyricsData[lyricsData.length - 1].time <= t ? lyricsData.length - 1 : -1;
-    const current = lyricsData[idx];
-    const next = lyricsData[idx + 1];
-    const isInterlude = current && next && (next.time - current.time > 10) && (t - current.time > 6);
-    const rows = document.querySelectorAll('.lyric-line');
-    rows.forEach((r, i) => {
-      if (i === idx && !isInterlude) {
-        const firstActivate = (i !== lastActiveIndex);
-        if (!r.classList.contains('active')) {
-          r.classList.add('active');
+    
+    let idx = -1;
+    const startSearch = Math.max(0, lastActiveIndex);
+    
+    for (let i = startSearch; i < lyricsData.length; i++) {
+        if (lyricsData[i].time > t) {
+            idx = i - 1;
+            break;
         }
-        if (r.classList.contains('has-translation')) {
-          r.classList.add('show-translation');
-        }
-        if (firstActivate) {
-          r.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          ReplayManager.incrementLyricCount();
-        }
-        if (dynamicLines && dynamicLines[i] && Array.isArray(dynamicLines[i].chars)) {
-          const charSpans = r.querySelectorAll('.lyric-char');
-          charSpans.forEach(sp => {
-            const tt = parseFloat(sp.dataset.time || '0');
-            if (!Number.isFinite(tt)) return;
-            if (tt <= t) {
-              if (!sp.classList.contains('char-active')) {
-                sp.classList.add('char-active');
-                sp.classList.remove('char-pending');
-              }
-            } else {
-              if (!sp.classList.contains('char-pending')) {
-                sp.classList.remove('char-active');
-                sp.classList.add('char-pending');
-              }
-            }
-          });
-        }
-      } else {
-        r.classList.remove('active');
-        r.classList.remove('show-translation');
-        if (dynamicLines && dynamicLines[i]) {
-          const charSpans = r.querySelectorAll('.lyric-char');
-          charSpans.forEach(sp => {
-            if (!sp.classList.contains('char-pending')) {
-              sp.classList.remove('char-active');
-              sp.classList.add('char-pending');
-            }
-          });
-        }
-      }
-    });
-    lastActiveIndex = isInterlude ? -1 : idx;
-  }
+        if (i === lyricsData.length - 1) idx = i;
+    }
 
-  // ===================== Share 機能 =====================
+    const targets = [];
+    if (ui.lyrics) targets.push(ui.lyrics);
+    if (PipManager.pipWindow && PipManager.pipLyricsContainer) {
+        targets.push(PipManager.pipLyricsContainer);
+    }
+
+    targets.forEach(container => {
+        const rows = container.querySelectorAll('.lyric-line');
+        if (rows.length === 0) return;
+
+        rows.forEach((r, i) => {
+            if (i === idx) {
+       
+                if (!r.classList.contains('active')) {
+                    r.classList.add('active');
+                    
+             
+                    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★
+                    
+                    if (container === ui.lyrics) ReplayManager.incrementLyricCount();
+                }
+                if (r.classList.contains('has-translation')) {
+                    r.classList.add('show-translation');
+                }
+
+                const charSpans = r.querySelectorAll('.lyric-char');
+                if (charSpans.length > 0) {
+                     charSpans.forEach(sp => {
+                        const tt = parseFloat(sp.dataset.time || '0');
+                        if (Number.isFinite(tt) && tt <= t) {
+                            sp.classList.add('char-active');
+                            sp.classList.remove('char-pending');
+                        } else {
+                            sp.classList.remove('char-active');
+                            sp.classList.add('char-pending');
+                        }
+                    });
+                }
+            } else {
+
+                r.classList.remove('active');
+                r.classList.remove('show-translation');
+                const charSpans = r.querySelectorAll('.lyric-char');
+                if (charSpans.length > 0) {
+                    charSpans.forEach(sp => {
+                        sp.classList.remove('char-active');
+                        sp.classList.add('char-pending');
+                    });
+                }
+            }
+        });
+    });
+    
+    lastActiveIndex = idx;
+  }
+      
+    // ===================== Share 機能 =====================
 
   function onShareButtonClick() {
     if (!lyricsData.length) {
@@ -2824,20 +3268,37 @@
     }
   }
 
-  // ===================== メイン tick ループ =====================
 
   const tick = async () => {
-    if (!document.getElementById('my-mode-toggle')) {
+
+    let toggleBtn = document.getElementById('my-mode-toggle');
+    
+
+    if (!toggleBtn) {
       const rc = document.querySelector('.right-controls-buttons');
       if (rc) {
-        const btn = createEl('button', 'my-mode-toggle', '', 'IMMERSION');
-        btn.onclick = () => {
+        toggleBtn = createEl('button', 'my-mode-toggle', '', 'IMMERSION');
+        
+
+        if (config.mode) toggleBtn.classList.add('active');
+
+        toggleBtn.onclick = () => {
           config.mode = !config.mode;
           document.body.classList.toggle('ytm-custom-layout', config.mode);
+          
+
+          toggleBtn.classList.toggle('active', config.mode);
         };
-        rc.prepend(btn);
+        rc.prepend(toggleBtn);
       }
+    } else {
+   
+        const isActive = toggleBtn.classList.contains('active');
+        if (config.mode && !isActive) toggleBtn.classList.add('active');
+        else if (!config.mode && isActive) toggleBtn.classList.remove('active');
     }
+
+
     const layout = document.querySelector('ytmusic-app-layout');
     const isPlayerOpen = layout?.hasAttribute('player-page-open');
     if (!config.mode || !isPlayerOpen) {
@@ -2846,6 +3307,8 @@
     }
     document.body.classList.add('ytm-custom-layout');
     initLayout();
+    
+
     (function patchSliders() {
       const sliders = document.querySelectorAll('ytmusic-player-bar .middle-controls tp-yt-paper-slider');
       sliders.forEach(s => {
@@ -2857,50 +3320,56 @@
         } catch (e) { }
       });
     })();
-        const meta = getMetadata();
-           if (!meta) return;
-           const key = `${meta.title}///${meta.artist}`;
-           
-           if (currentKey !== key) {
-             // ★ 曲が変わったタイミングでクラウド自動同期
-             if (currentKey !== null && CloudSync && typeof CloudSync.syncNow === 'function') {
-               CloudSync.syncNow();  // 非同期だが await は不要
-             }
-       
-             const v = document.querySelector('video');
-             if (currentKey === null) {
-               timeOffset = 0; 
-             } else {
-               timeOffset = v ? v.currentTime : 0; 
-             }
-       
-             currentKey = key;
-             lyricsData = [];
-             dynamicLines = null;
-             lyricsCandidates = null;
-             selectedCandidateId = null;
-             lyricsRequests = null;
-             lyricsConfig = null;
-             shareMode = false;
-             shareStartIndex = null;
-             shareEndIndex = null;
-             document.body.classList.remove('ytm-share-select-mode');
-             if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
-             lastActiveIndex = -1;
-             lastTimeForChars = -1;
-       
-             if (ui.queuePanel && ui.queuePanel.classList.contains('visible')) {
-               QueueManager.onSongChanged();
-             }
-       
-             updateMetaUI(meta);
-             refreshCandidateMenu();
-             refreshLockMenu();
-             if (ui.lyrics) ui.lyrics.scrollTop = 0;
-             loadLyrics(meta);
-           }
-         };
 
+    const meta = getMetadata();
+    if (!meta) return;
+    const key = `${meta.title}///${meta.artist}`;
+
+    if (currentKey !== key) {
+      // クラウド同期
+      if (currentKey !== null && CloudSync && typeof CloudSync.syncNow === 'function') {
+        CloudSync.syncNow();
+      }
+
+      const v = document.querySelector('video');
+      const currentTime = v ? v.currentTime : 0;
+      const duration = v ? v.duration : 0;
+
+
+      if (currentTime < 5 || (duration > 0 && Math.abs(duration - currentTime) < 5)) {
+        timeOffset = 0;
+      } else {
+        timeOffset = currentTime;
+      }
+      // ★★★★★★★★★★★★★★★★★★★
+
+      currentKey = key;
+      lyricsData = [];
+      dynamicLines = null;
+      lyricsCandidates = null;
+      selectedCandidateId = null;
+      lyricsRequests = null;
+      lyricsConfig = null;
+      shareMode = false;
+      shareStartIndex = null;
+      shareEndIndex = null;
+      document.body.classList.remove('ytm-share-select-mode');
+      if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
+      lastActiveIndex = -1;
+      lastTimeForChars = -1;
+
+      if (ui.queuePanel && ui.queuePanel.classList.contains('visible')) {
+        QueueManager.onSongChanged();
+      }
+
+      updateMetaUI(meta);
+      refreshCandidateMenu();
+      refreshLockMenu();
+      if (ui.lyrics) ui.lyrics.scrollTop = 0;
+      loadLyrics(meta);
+    }
+  };
+    
   function updateMetaUI(meta) {
     ui.title.innerText = meta.title;
     ui.artist.innerText = meta.artist;
@@ -2908,9 +3377,12 @@
       ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
       ui.bg.style.backgroundImage = `url(${meta.src})`;
     }
-    ui.lyrics.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
-  }
 
+    ui.lyrics.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
+
+    PipManager.updateMeta(meta.title, meta.artist);
+    PipManager.resetLyrics(); 
+  }
   // ===================== 初期化 =====================
 
   ReplayManager.init();
