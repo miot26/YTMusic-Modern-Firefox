@@ -664,7 +664,6 @@
   
   let timeOffset = 0;
 
-  // ★追加: 最初の曲検知かどうかを判定するフラグ
   let isFirstSongDetected = true;
 
   let shareMode = false;
