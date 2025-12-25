@@ -1,7 +1,7 @@
 const CLOUD_STORAGE_KEY = 'dailyReplayCloudState';
 
 const DEFAULT_CLOUD_STATE = {
-  serverBaseUrl: 'http://immersionproject.coreone.work',
+  serverBaseUrl: 'https://immersionproject.coreone.work',
   loginPath: '/auth/discord',
   recoveryToken: null,
   lastSyncAt: null,
@@ -9,15 +9,15 @@ const DEFAULT_CLOUD_STATE = {
 };
 
 const SHARED_TRANSLATE_ENDPOINTS = [
-  'http://immersionproject.coreone.work/api/translate',
-  'http://immersionproject.coreone.work/api/translate/'
+  'https://immersionproject.coreone.work/api/translate',
+  'httpa://immersionproject.coreone.work/api/translate/'
 ];
 
 const COMMUNITY_REMAINING_ENDPOINTS = [
   'https://immersionproject.coreone.work/api/community/remaining',
   'https://immersionproject.coreone.work/api/community/remaining/',
-  'http://immersionproject.coreone.work/api/community/remaining',
-  'http://immersionproject.coreone.work/api/community/remaining/',
+  'https://immersionproject.coreone.work/api/community/remaining',
+  'https://immersionproject.coreone.work/api/community/remaining/',
 ];
 
 
@@ -798,24 +798,18 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.type === 'GET_LYRICS') {
     const { track, artist, youtube_url, video_id } = req.payload || {};
 
-    console.log('[BG] GET_LYRICS (Parallel + Merge Candidates)', { track, artist });
+    console.log('[BG] GET_LYRICS (Hub + GitHub)', { track, artist });
 
     (async () => {
       const timeoutMs = 15000;
 
-      // 1. LRCHub
+      // 1) LRCHub
       const pHub = withTimeout(
         fetchFromLrchub(track, artist, youtube_url, video_id),
         timeoutMs, 'lrchub'
       ).then(res => ({ source: 'hub', data: res })).catch(e => ({ source: 'hub', error: e }));
 
-      // 2. LrcLib
-      const pLib = withTimeout(
-        fetchFromLrcLib(track, artist),
-        timeoutMs, 'lrclib'
-      ).then(res => ({ source: 'lib', data: res })).catch(e => ({ source: 'lib', error: e }));
-
-      // 3. GitHub
+      // 2) GitHub
       const vidForGit = video_id || extractVideoIdFromUrl(youtube_url);
       let pGit = Promise.resolve({ source: 'git', data: '' });
       if (vidForGit) {
@@ -824,35 +818,27 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           .catch(e => ({ source: 'git', error: e }));
       }
 
-      const results = await Promise.all([pHub, pLib, pGit]);
-      
+      const results = await Promise.all([pHub, pGit]);
+
       const hubRes = results.find(r => r.source === 'hub');
-      const libRes = results.find(r => r.source === 'lib');
       const gitRes = results.find(r => r.source === 'git');
 
+      // 候補・config・requests は LRCHub のみ（LrcLib 廃止）
       let sharedCandidates = [];
       let sharedConfig = null;
       let sharedRequests = [];
-      
-      if (hubRes && !hubRes.error && hubRes.data && Array.isArray(hubRes.data.candidates)) {
+
+      if (hubRes && !hubRes.error && hubRes.data) {
+        if (Array.isArray(hubRes.data.candidates)) {
           sharedCandidates.push(...hubRes.data.candidates);
-          if (hubRes.data.config) sharedConfig = hubRes.data.config;
-          if (Array.isArray(hubRes.data.requests)) sharedRequests = hubRes.data.requests;
+        }
+        if (hubRes.data.config) sharedConfig = hubRes.data.config;
+        if (Array.isArray(hubRes.data.requests)) sharedRequests = hubRes.data.requests;
       }
-      
-      if (libRes && !libRes.error && libRes.data && Array.isArray(libRes.data.candidates)) {
-          const existingIds = new Set(sharedCandidates.map(c => c.id));
-          libRes.data.candidates.forEach(c => {
-              if (!existingIds.has(c.id)) {
-                  sharedCandidates.push(c);
-                  existingIds.add(c.id);
-              }
-          });
-      }
-      
+
       const hasCandidates = sharedCandidates.length > 0;
 
-      // A. LRCHub
+      // A) LRCHub が勝ち
       if (hubRes && !hubRes.error && hubRes.data && hubRes.data.lyrics && hubRes.data.lyrics.trim()) {
         const d = hubRes.data;
         console.log('[BG] Won: LRCHub');
@@ -869,23 +855,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return;
       }
 
-      // B. LrcLib
-      if (libRes && !libRes.error && libRes.data && libRes.data.lyrics && libRes.data.lyrics.trim()) {
-        console.log('[BG] Won: LrcLib');
-        sendResponse({
-          success: true,
-          lyrics: libRes.data.lyrics,
-          dynamicLines: null,
-          hasSelectCandidates: hasCandidates,
-          candidates: sharedCandidates,
-          config: sharedConfig,
-          requests: sharedRequests,
-          githubFallback: false,
-        });
-        return;
-      }
-
-      // C. GitHub
+      // B) GitHub が勝ち
       if (
         gitRes &&
         !gitRes.error &&
@@ -907,7 +877,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return;
       }
 
-      console.log('[BG] No lyrics found (Auto)');
+      console.log('[BG] No lyrics found (Hub+GitHub)');
       sendResponse({
         success: false,
         lyrics: '',
@@ -915,7 +885,6 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         hasSelectCandidates: hasCandidates,
         candidates: sharedCandidates,
       });
-
     })();
 
     return true;
