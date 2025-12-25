@@ -2193,15 +2193,24 @@ const TEXTS = {
     }
   };
 
-  function updateMetaUI(meta) {
-    ui.title.innerText = meta.title;
+function updateMetaUI(meta) {
+  ui.title.innerText = meta.title;
+  ui.artist.innerText = meta.artist;
+
+  const artistLinkEl = document.querySelector('ytmusic-player-bar .byline.style-scope.ytmusic-player-bar a.yt-simple-endpoint');
+  if (artistLinkEl && artistLinkEl.href) {
+    const channelUrl = artistLinkEl.href;
+    ui.artist.innerHTML = `<a href="${channelUrl}" target="_blank" style="color:inherit; text-decoration:none;">${meta.artist}</a>`;
+  } else {
     ui.artist.innerText = meta.artist;
-    if (meta.src) {
-      ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
-      ui.bg.style.backgroundImage = `url(${meta.src})`;
-    }
-    ui.lyrics.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
   }
+
+  if (meta.src) {
+    ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
+    ui.bg.style.backgroundImage = `url(${meta.src})`;
+  }
+  ui.lyrics.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
+}
 
   // 初期化
   ReplayManager.init();
