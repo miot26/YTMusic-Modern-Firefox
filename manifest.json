@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "YouTube Music Modern UI for Firefox",
-  "version": "1.202511.0-rc",
+  "version": "0.0.3",
   "description": "YouTube Musicをもっと美しく",
+  "icons": {
+    "128": "src/assets/images/icon-128x128.png"
+  },
 
   "browser_specific_settings": {
     "gecko": {
