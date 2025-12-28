@@ -108,7 +108,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   width: 100%;
   aspect-ratio: 1 / 1;
   margin-bottom: 25px;
-  border-radius: 20px;
+  border-radius: 25px;
   box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.7);
   overflow: hidden;
 }
@@ -151,7 +151,7 @@ body.ytm-custom-layout ytmusic-search-box input {
 }
 .ytm-glass-btn {
   padding: 8px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 9999px; color: #fff; cursor: pointer; font-weight: 700; backdrop-filter: blur(10px);
+  border-radius: 15px; color: #fff; cursor: pointer; font-weight: 700; backdrop-filter: blur(10px);
   font-size: 13px; transition: 0.2s;
 }
 .ytm-glass-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.02); }
@@ -160,16 +160,16 @@ body.ytm-custom-layout ytmusic-search-box input {
 /* 設定パネル */
 #ytm-settings-panel {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; padding: 25px;
-  background: rgba(30,30,30,0.95); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(30,30,30,0.95); border-radius: 15px; border: 1px solid rgba(255,255,255,0.1);
   z-index: 99999; display: none; flex-direction: column; gap: 15px; color: #fff;
   font-family: sans-serif; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
 }
 #ytm-settings-panel.active { display: flex; }
 #ytm-settings-panel h3 { margin: 0 0 5px 0; font-size: 18px; }
-#ytm-settings-panel input[type="password"] { width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; box-sizing: border-box; }
-#ytm-settings-panel button { padding: 3px; background: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: #000; }
+#ytm-settings-panel input[type="password"] { width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 15px; box-sizing: border-box; }
+#ytm-settings-panel button { padding: 3px; background: #fff; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: #000; }
 .toggle-label { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 14px; }
-#trans-toggle { appearance: none; width: 40px; height: 22px; background: rgba(255,255,255,0.2); border-radius: 20px; position: relative; transition: 0.3s; }
+#trans-toggle { appearance: none; width: 40px; height: 22px; background: rgba(255,255,255,0.2); border-radius: 15px; position: relative; transition: 0.3s; }
 #trans-toggle:checked { background: #34c759; }
 #trans-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: 0.3s; }
 #trans-toggle:checked::after { transform: translateX(18px); }
@@ -322,7 +322,7 @@ body.ytm-share-select-mode .lyric-line {
 
 body.ytm-share-select-mode .lyric-line.share-select-range {
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 15px;
   filter: none;
 }
 
@@ -334,7 +334,7 @@ body.ytm-share-select-mode .lyric-line.share-select-end::before {
   top: 10%;
   bottom: 10%;
   width: 3px;
-  border-radius: 999px;
+  border-radius: 15px;
   background: rgba(255, 255, 255, 0.6);
 }
 
@@ -347,7 +347,7 @@ body.ytm-share-select-mode .lyric-line.share-select-end::before {
   top: 18px;
   right: 32px;
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: 15px;
   background: rgba(15, 15, 20, 0.9);
   color: #fff;
   font-size: 12px;
@@ -387,7 +387,7 @@ body.ytm-custom-layout ytmusic-player-bar {
   background: rgba(30, 30, 30, 0.4) !important;
   backdrop-filter: blur(60px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(60px) saturate(180%) !important;
-  border-radius: 30px !important;
+  border-radius: 25px !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5) !important;
   z-index: 2500 !important;
@@ -495,7 +495,7 @@ body.ytm-custom-layout .progress-bar,
 body.ytm-custom-layout .song-progress,
 body.ytm-custom-layout ytmusic-player-bar [role="slider"] {
   overflow: clip !important;
-  border-radius: 20px !important;
+  border-radius: 15px !important;
   padding: 0 20px !important;
   box-sizing: border-box !important;
 }
@@ -509,7 +509,7 @@ body.ytm-custom-layout tp-yt-paper-slider {
 #my-mode-toggle {
   padding: 5px 10px !important;
   font-size: 12px;
-  border-radius: 9px;
+  border-radius: 15px;
   background: rgba(255,255,255,1);
   color: #000;
   border: none;
@@ -580,7 +580,7 @@ body.ytm-custom-layout ytmusic-player-bar yt-icon-button.volume {
   right: 0;
   min-width: 240px;
   padding: 8px;
-  border-radius: 18px;
+  border-radius: 15px;
   background: rgba(15, 15, 20, 0.75);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(22px) saturate(160%);
@@ -615,7 +615,7 @@ body.ytm-custom-layout ytmusic-player-bar yt-icon-button.volume {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 12px;
+  border-radius: 15px;
   cursor: pointer;
   text-align: left;
   width: 100%;
@@ -644,7 +644,7 @@ body.ytm-custom-layout ytmusic-player-bar yt-icon-button.volume {
   right: 56px;
   min-width: 260px;
   padding: 10px 10px 8px;
-  border-radius: 18px;
+  border-radius: 15px;
   background: rgba(15, 15, 20, 0.92);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(22px) saturate(160%);
@@ -715,7 +715,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar {
   background: rgba(20, 20, 20, 0.4) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 16px !important;
+  border-radius: 25px !important;
   bottom: 12px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
@@ -795,7 +795,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   top: 16px;
   right: 16px;
   padding: 10px 16px;
-  border-radius: 999px;
+  border-radius: 15px;
   background: rgba(15, 15, 20, 0.9);
   color: #fff;
   font-size: 13px;
@@ -835,7 +835,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   max-height: 900px;
   padding: 40px;
   background: rgba(10, 10, 12, 0.85);
-  border-radius: 32px;
+  border-radius: 25px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 100000;
   display: none;
@@ -876,7 +876,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   color: #fff;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 20px;
   display: flex;
@@ -909,7 +909,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 
 .bento-item {
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 24px;
+  border-radius: 25px;
   padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
@@ -1015,7 +1015,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   padding: 6px 14px;
-  border-radius: 99px;
+  border-radius: 15px;
   font-size: 12px;
   font-weight: 700;
   width: fit-content;
@@ -1089,7 +1089,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 }
 .replay-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.2);
-  border-radius: 3px;
+  border-radius: 5px;
 }
 
 .replay-item {
@@ -1097,7 +1097,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   align-items: center;
   gap: 16px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 15px;
   transition: 0.2s;
   cursor: default;
   margin-bottom: 4px;
@@ -1122,7 +1122,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   height: 64px !important;
   min-width: 64px !important;
   max-width: 64px !important;
-  border-radius: 8px;
+  border-radius: 5px;
   overflow: hidden;
   background: #000;
   flex-shrink: 0;
@@ -1182,19 +1182,19 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 }
 
 .replay-footer-btn {
-  position: absolute;
-  bottom: 25px;
-  right: 30px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.2);
+ 
+  position: static !important; 
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   letter-spacing: 0.5px;
-  padding: 5px 10px;
-  border-radius: 8px;
+  padding: 8px 16px;
+  border-radius: 10px; 
+  backdrop-filter: blur(4px);
 }
 
 .replay-footer-btn:hover {
@@ -1256,7 +1256,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   height: calc(100vh - 210px);
   background: rgba(20, 20, 25, 0.85);
   backdrop-filter: blur(40px) saturate(180%);
-  border-radius: 24px 0 0 24px;
+  border-radius: 25px 0 0 24px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
   z-index: 9999;
@@ -1309,7 +1309,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   align-items: center;
   gap: 12px;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: 15px;
   cursor: pointer;
   transition: background 0.2s;
   background: rgba(255, 255, 255, 0.02);
@@ -1329,7 +1329,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 .queue-img {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: 5px;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
@@ -1358,7 +1358,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   display: block;
   width: 4px;
   background: #fff;
-  border-radius: 2px;
+  border-radius: 5px;
   animation: eq-bounce 0.8s ease-in-out infinite;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
@@ -1408,23 +1408,6 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   display: flex;
   gap: 12px; 
   z-index: 100;
-}
-
-
-.replay-footer-btn {
- 
-  position: static !important; 
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  padding: 8px 16px;
-  border-radius: 99px; 
-  backdrop-filter: blur(4px);
 }
 
 .replay-footer-btn:hover {
