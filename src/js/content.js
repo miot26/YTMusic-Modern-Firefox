@@ -4434,6 +4434,7 @@ const withRandomCacheBusterFast = (url) => {
   }
 
   const tick = async () => {
+  if (document.querySelector('.ad-interrupting') || document.querySelector('.ad-showing')) return;
 
     let toggleBtn = document.getElementById('my-mode-toggle');
 
