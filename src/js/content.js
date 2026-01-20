@@ -1,8 +1,9 @@
+/* globals chrome, browser */
 (function () {
   const EXT =
-    typeof chrome !== 'undefined'
-      ? chrome
-      : (typeof browser !== 'undefined' ? browser : null);
+    typeof globalThis.chrome !== 'undefined'
+      ? globalThis.chrome
+      : (typeof globalThis.browser !== 'undefined' ? globalThis.browser : null);
 
   // カスタムハンドル（丸ポチ）を作成してoverflow:hiddenから逃がす
   (function createCustomProgressHandle() {
@@ -492,6 +493,8 @@
     }
   }
 
+  const chrome = EXT;
+
 
   const NO_LYRICS_SENTINEL = '__NO_LYRICS__';
 
@@ -899,12 +902,15 @@
   let dynamicLines = null;
   // duet: raw sub vocal LRC (sub.txt) - only lines to show on the right
   let duetSubLyricsRaw = '';
+  // duet: dynamic lines for sub.txt (1文字追尾用)
+  let duetSubDynamicLines = null;
   // keep last raw lyrics text so we can re-render when sub lyrics arrive later
   let lastRawLyricsText = null;
 
   // dynamicLyrics helper: time->line map (rebuild when reference changes)
   let _dynMapSrc = null;
   let _dynMap = null;
+  let _duetExcludedTimes = new Set();
   let lyricsCandidates = null;
   let selectedCandidateId = null;
   let lastActiveIndex = -1;
@@ -1206,7 +1212,7 @@
       const today = new Date(Date.now());
       const dayOfWeek = today.getDay();
 
-      let vibeLabel = "分析中...";
+      let vibeLabel = "分  中...";
       let topArtistShare = "0%";
 
       if (totalPlays > 0) {
@@ -2089,22 +2095,184 @@
     return t.toFixed(3);
   };
 
+  // Dynamic.lrc形式のパーサー（sub.txt用）
+  const parseDynamicLrcForSub = (text) => {
+    const out = [];
+    if (!text) return out;
+
+    const rows = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+    const parseLrcTimeToMsSub = (ts) => {
+      const s = String(ts || '').trim();
+      const m = s.match(/^(\d+):(\d{2})(?:\.(\d{1,3}))?$/);
+      if (!m) return null;
+      const mm = parseInt(m[1], 10);
+      const ss = parseInt(m[2], 10);
+      let frac = m[3] || '0';
+      if (frac.length === 1) frac = frac + '00';
+      else if (frac.length === 2) frac = frac + '0';
+      const ms = parseInt(frac.slice(0, 3), 10);
+      if (!Number.isFinite(mm) || !Number.isFinite(ss) || !Number.isFinite(ms)) return null;
+      return (mm * 60 + ss) * 1000 + ms;
+    };
+
+    // 1st pass: parse lines
+    const parsed = [];
+    for (const raw of rows) {
+      const line = raw.trimEnd();
+      if (!line) continue;
+
+      const m = line.match(/^\[(\d+:\d{2}(?:\.\d{1,3})?)\]\s*(.*)$/);
+      if (!m) continue;
+
+      parsed.push({
+        lineMs: parseLrcTimeToMsSub(m[1]),
+        rest: m[2] || '',
+      });
+    }
+
+    const pushDistributed = (chars, chunk, startMs, endMs) => {
+      if (!chunk) return;
+      const arr = Array.from(chunk);
+      const n = arr.length;
+      if (!n) return;
+
+      const s = (typeof startMs === 'number') ? startMs : null;
+      const e = (typeof endMs === 'number') ? endMs : null;
+
+      if (s == null) {
+        for (const ch of arr) chars.push({ t: 0, c: ch });
+        return;
+      }
+
+      if (e == null || e <= s) {
+        for (const ch of arr) chars.push({ t: s, c: ch });
+        return;
+      }
+
+      const dur = Math.max(1, e - s);
+      const step = dur / n;
+
+      for (let i = 0; i < n; i++) {
+        const t = s + Math.floor(step * i);
+        chars.push({ t, c: arr[i] });
+      }
+    };
+
+    for (let li = 0; li < parsed.length; li++) {
+      const { lineMs, rest } = parsed[li];
+      const nextLineMs = (li + 1 < parsed.length && typeof parsed[li + 1].lineMs === 'number')
+        ? parsed[li + 1].lineMs
+        : null;
+
+      const tagRe = /<(\d+:\d{2}(?:\.\d{1,3})?)>/g;
+      const chars = [];
+
+      let prevMs = null;
+      let prevEnd = 0;
+
+      while (true) {
+        const mm = tagRe.exec(rest);
+        if (!mm) break;
+
+        const tagMs = parseLrcTimeToMsSub(mm[1]);
+
+        if (prevMs == null && tagMs != null && mm.index > prevEnd) {
+          const chunk0 = rest.slice(prevEnd, mm.index);
+          pushDistributed(chars, chunk0, tagMs, tagMs);
+        }
+
+        if (prevMs != null) {
+          const chunk = rest.slice(prevEnd, mm.index);
+          pushDistributed(chars, chunk, prevMs, tagMs);
+        }
+
+        prevMs = tagMs;
+        prevEnd = mm.index + mm[0].length;
+      }
+
+      if (prevMs != null) {
+        const chunk = rest.slice(prevEnd);
+        let endMs = nextLineMs;
+        if (typeof endMs !== 'number') endMs = prevMs + 1500;
+        if (endMs <= prevMs) endMs = prevMs + 200;
+        pushDistributed(chars, chunk, prevMs, endMs);
+      }
+
+      const textLine = chars.map(c => c.c).join('');
+
+      out.push({
+        startTimeMs: (typeof lineMs === 'number' ? lineMs : (chars.length ? chars[0].t : 0)),
+        text: textLine,
+        chars,
+      });
+    }
+
+    return out;
+  };
+
+  // Dynamic.lrc形式かどうかを判定
+  const isDynamicLrcFormat = (text) => {
+    if (!text) return false;
+    // <00:00.00>形式のタグが含まれていればDynamic.lrc形式
+    return /<\d+:\d{2}(?:\.\d{1,3})?>/.test(text);
+  };
+
   const parseSubLRC = (lrc) => {
+    // Dynamic.lrc形式の場合は専用パーサーを使用
+    if (isDynamicLrcFormat(lrc)) {
+      const dynLines = parseDynamicLrcForSub(lrc);
+      if (dynLines && dynLines.length) {
+        // dynamicLinesからLRC形式のlinesに変換
+        const lines = dynLines.map(dl => ({
+          time: (typeof dl.startTimeMs === 'number') ? dl.startTimeMs / 1000 : null,
+          text: dl.text || '',
+        }));
+        // サブ用のdynamicLinesを保存
+        duetSubDynamicLines = dynLines;
+        return { lines, hasTs: true, dynamicLines: dynLines };
+      }
+    }
+    
+    // 通常のLRC形式
+    duetSubDynamicLines = null;
     const { lines, hasTs } = parseLRCInternal(lrc);
-    return { lines: Array.isArray(lines) ? lines : [], hasTs: !!hasTs };
+    return { lines: Array.isArray(lines) ? lines : [], hasTs: !!hasTs, dynamicLines: null };
   };
 
   const mergeDuetLines = (mainLines, subLines) => {
-    const subTimeKeys = new Set();
-    (subLines || []).forEach(l => {
-      if (typeof l?.time === 'number') subTimeKeys.add(timeKey(l.time));
+    // タイムスタンプの許容誤差 (秒)
+    const TIME_TOLERANCE = 0.5;
+
+    const subLinesWithTime = (subLines || []).filter(l => typeof l?.time === 'number');
+    
+    // サブ歌詞のタイムスタンプセットを作成（高速検索用）
+    const subTimeSet = new Set();
+    subLinesWithTime.forEach(sub => {
+      // 許容誤差を考慮して、0.1秒刻みでキーを追加
+      const baseMs = Math.round(sub.time * 10);
+      for (let i = -5; i <= 5; i++) {
+        subTimeSet.add(baseMs + i);
+      }
     });
 
-    // "sub があるときはノーマルを非表示" = sub 側にあるタイムスタンプの行は main 側から除外する
+    // sub歌詞と時間が被るメイン歌詞を除外する
+    // また、除外されたメイン歌詞のタイムスタンプを記録
+    const excludedMainTimes = new Set();
     const filteredMain = (mainLines || []).filter(l => {
       if (typeof l?.time !== 'number') return true;
-      return !subTimeKeys.has(timeKey(l.time));
+      // 時間が近似しているサブ歌詞があるかチェック
+      const keyMs = Math.round(l.time * 10);
+      const collision = subTimeSet.has(keyMs);
+      if (collision) {
+        excludedMainTimes.add(Math.round(l.time * 1000)); // ミリ秒精度で記録
+      }
+      return !collision;
     });
+    
+    // dynamicLinesからも除外されたメイン行に対応するものを除外
+    // （グローバル変数dynamicLinesを直接変更せず、フィルタ用のセットを保存）
+    _duetExcludedTimes = excludedMainTimes;
 
     const merged = [];
     filteredMain.forEach(l => merged.push({ ...l, duetSide: 'left' }));
@@ -2113,11 +2281,14 @@
     merged.sort((a, b) => {
       const at = (typeof a.time === 'number') ? a.time : Number.POSITIVE_INFINITY;
       const bt = (typeof b.time === 'number') ? b.time : Number.POSITIVE_INFINITY;
-      if (at !== bt) return at - bt;
-      // same timestamp: keep left before right for readability
-      const ap = a.duetSide === 'right' ? 1 : 0;
-      const bp = b.duetSide === 'right' ? 1 : 0;
-      return ap - bp;
+      
+      // 時間がほぼ同じ場合は、Left(メイン) -> Right(サブ) の順に並べる
+      if (Math.abs(at - bt) < 0.05) {
+        const ap = a.duetSide === 'right' ? 1 : 0;
+        const bp = b.duetSide === 'right' ? 1 : 0;
+        return ap - bp;
+      }
+      return at - bt;
     });
 
     return merged;
@@ -2125,15 +2296,26 @@
 
   const getDynamicLineForTime = (sec) => {
     if (!dynamicLines || !Array.isArray(dynamicLines) || !dynamicLines.length) return null;
+    
+    // デュエットモードで除外されたタイムスタンプかチェック
+    const isDuetMode = document.body.classList.contains('ytm-duet-mode');
+    if (isDuetMode && _duetExcludedTimes && _duetExcludedTimes.size > 0) {
+      const secMs = Math.round(sec * 1000);
+      // 許容誤差50ms以内で除外されたタイムスタンプをチェック
+      for (let offset = -50; offset <= 50; offset += 10) {
+        if (_duetExcludedTimes.has(secMs + offset)) {
+          return null; // このタイムスタンプはsub.txtで上書きされているので無視
+        }
+      }
+    }
 
-    // rebuild map only when dynamicLines reference changes
+    // マップキャッシュの再構築（参照が変わった時のみ）
     if (_dynMapSrc !== dynamicLines) {
       _dynMapSrc = dynamicLines;
       _dynMap = new Map();
 
       dynamicLines.forEach(dl => {
         let ms = null;
-
         if (typeof dl?.startTimeMs === 'number') {
           ms = dl.startTimeMs;
         } else if (typeof dl?.startTimeMs === 'string') {
@@ -2150,7 +2332,66 @@
       });
     }
 
-    return _dynMap?.get(timeKey(sec)) || null;
+    // 1. 完全一致トライ
+    const exact = _dynMap?.get(timeKey(sec));
+    if (exact) return exact;
+
+    // 2. 近似値トライ (前後0.15秒)
+    const TOLERANCE = 0.15;
+    const found = dynamicLines.find(dl => {
+       let startS = 0;
+       if (typeof dl.startTimeMs === 'number') startS = dl.startTimeMs / 1000;
+       else if (dl.time) startS = dl.time;
+       return Math.abs(startS - sec) <= TOLERANCE;
+    });
+
+    return found || null;
+  };
+
+  // サブボーカル用のdynamicLine取得（sub.txtのDynamic.lrc対応）
+  let _subDynMapSrc = null;
+  let _subDynMap = null;
+  
+  const getSubDynamicLineForTime = (sec) => {
+    if (!duetSubDynamicLines || !Array.isArray(duetSubDynamicLines) || !duetSubDynamicLines.length) return null;
+    
+    // マップキャッシュの再構築（参照が変わった時のみ）
+    if (_subDynMapSrc !== duetSubDynamicLines) {
+      _subDynMapSrc = duetSubDynamicLines;
+      _subDynMap = new Map();
+
+      duetSubDynamicLines.forEach(dl => {
+        let ms = null;
+        if (typeof dl?.startTimeMs === 'number') {
+          ms = dl.startTimeMs;
+        } else if (typeof dl?.startTimeMs === 'string') {
+          const n = Number(dl.startTimeMs);
+          if (!Number.isNaN(n)) ms = n;
+        } else if (Array.isArray(dl?.chars) && dl.chars.length) {
+          const ts = dl.chars.map(c => (typeof c?.t === 'number' ? c.t : null)).filter(v => v != null);
+          if (ts.length) ms = Math.min(...ts);
+        }
+
+        if (typeof ms === 'number') {
+          _subDynMap.set(timeKey(ms / 1000), dl);
+        }
+      });
+    }
+
+    // 1. 完全一致トライ
+    const exact = _subDynMap?.get(timeKey(sec));
+    if (exact) return exact;
+
+    // 2. 近似値トライ (前後0.15秒)
+    const TOLERANCE = 0.15;
+    const found = duetSubDynamicLines.find(dl => {
+       let startS = 0;
+       if (typeof dl.startTimeMs === 'number') startS = dl.startTimeMs / 1000;
+       else if (dl.time) startS = dl.time;
+       return Math.abs(startS - sec) <= TOLERANCE;
+    });
+
+    return found || null;
   };
 
   const hoverTimeInfoSetup = () => {
@@ -2863,6 +3104,10 @@ async function applyLyricsText(rawLyrics) {
     // and render the sub lines on the right.
     let baseLines = parsed;
     let hasDuetSub = false;
+    
+    // デュエットモードのリセット（sub.txtがない場合は除外タイムスタンプもクリア）
+    _duetExcludedTimes = new Set();
+    
     if (typeof duetSubLyricsRaw === 'string' && duetSubLyricsRaw.trim()) {
       const subObj = parseSubLRC(duetSubLyricsRaw);
       const subLines = subObj.lines || [];
@@ -2903,11 +3148,13 @@ async function applyLyricsText(rawLyrics) {
   async function selectCandidateById(candId) {
     if (!Array.isArray(lyricsCandidates) || !lyricsCandidates.length) return;
     const cand = lyricsCandidates.find((c, idx) => (c.id || String(idx)) === candId);
-    if (!cand || typeof cand.lyrics !== 'string' || !cand.lyrics.trim()) return;
-    selectedCandidateId = candId;
-    dynamicLines = null;
-    if (currentKey) {
-      storage.set(currentKey, {
+  if (!cand || typeof cand.lyrics !== 'string' || !cand.lyrics.trim()) return;
+  selectedCandidateId = candId;
+  dynamicLines = null;
+  duetSubDynamicLines = null;
+  _duetExcludedTimes = new Set();
+  if (currentKey) {
+  storage.set(currentKey, {
         lyrics: cand.lyrics,
         dynamicLines: null,
         noLyrics: false,
@@ -3167,6 +3414,8 @@ async function applyLyricsText(rawLyrics) {
           storage.remove(currentKey);
           lyricsData = [];
           dynamicLines = null;
+          duetSubDynamicLines = null;
+          _duetExcludedTimes = new Set();
           lyricsCandidates = null;
           selectedCandidateId = null;
           lyricsRequests = null;
@@ -3656,6 +3905,8 @@ function renderSettingsPanel() {
           
           lyricsData = [];
           dynamicLines = null;
+          duetSubDynamicLines = null;
+          _duetExcludedTimes = new Set();
           lyricsCandidates = null;
           selectedCandidateId = null;
           lyricsRequests = null;
@@ -3821,6 +4072,8 @@ function renderSettingsPanel() {
     let cached = await storage.get(thisKey);
     isFallbackLyrics = false;
     dynamicLines = null;
+    duetSubDynamicLines = null;
+    _duetExcludedTimes = new Set();
     duetSubLyricsRaw = '';
     lyricsCandidates = null;
     selectedCandidateId = null;
@@ -4196,7 +4449,9 @@ const withRandomCacheBusterFast = (url) => {
     await applyLyricsText(data);
   }
 
-  function renderLyrics(data) {
+
+
+function renderLyrics(data) {
     if (!ui.lyrics) return;
     ui.lyrics.innerHTML = '';
     ui.lyrics.scrollTop = 0;
@@ -4206,6 +4461,7 @@ const withRandomCacheBusterFast = (url) => {
     document.body.classList.toggle('ytm-no-timestamp', !hasTimestamp);
 
     const fragment = document.createDocumentFragment();
+
     data.forEach((line, index) => {
       const row = createEl('div', '', 'lyric-line');
 
@@ -4221,18 +4477,37 @@ const withRandomCacheBusterFast = (url) => {
 
       const mainSpan = createEl('span', '', 'lyric-main');
 
-      // dynamic lyrics highlighting: only for main/left side (avoid breaking duet index mapping)
+      // dynamic lyrics highlighting
       let dyn = null;
-      if (!(line && line.duetSide === 'right')) {
+      
+      // サブボーカル(right)にはduetSubDynamicLinesを使用、メインにはdynamicLinesを使用
+      if (line && line.duetSide === 'right') {
+        // サブボーカル用のdynamic lines
+        if (duetSubDynamicLines && Array.isArray(duetSubDynamicLines) && duetSubDynamicLines.length) {
+          if (typeof line.time === 'number') {
+             dyn = getSubDynamicLineForTime(line.time);
+          }
+        }
+      } else {
+        // メインボーカル用のdynamic lines
         if (dynamicLines && Array.isArray(dynamicLines) && dynamicLines.length) {
-          if (typeof line.time === 'number') dyn = getDynamicLineForTime(line.time) || dynamicLines[index];
-          else dyn = dynamicLines[index];
+          if (typeof line.time === 'number') {
+             // 時間で検索
+             dyn = getDynamicLineForTime(line.time);
+          } else {
+             // デュエットモード以外のみインデックスフォールバックを使用
+             const isDuetMode = document.body.classList.contains('ytm-duet-mode');
+             if (!isDuetMode) {
+                dyn = dynamicLines[index];
+             }
+          }
         }
       }
+      
       if (dyn && Array.isArray(dyn.chars) && dyn.chars.length) {
         dyn.chars.forEach((ch, ci) => {
           const chSpan = createEl('span', '', 'lyric-char');
-          // Preserve spaces (avoid browser collapsing/stripping)
+          // Preserve spaces
           const cc = (ch.c === '\t') ? ' ' : ch.c;
           chSpan.textContent = (cc === ' ') ? '\u00A0' : cc;
           chSpan.dataset.charIndex = String(ci);
@@ -4243,10 +4518,11 @@ const withRandomCacheBusterFast = (url) => {
           mainSpan.appendChild(chSpan);
         });
       } else {
-        mainSpan.textContent = line.text;
+        mainSpan.textContent = line ? line.text : '';
       }
       row.appendChild(mainSpan);
-      if (line.translation) {
+      
+      if (line && line.translation) {
         const subSpan = createEl('span', '', 'lyric-translation', line.translation);
         row.appendChild(subSpan);
         row.classList.add('has-translation');
@@ -4257,7 +4533,7 @@ const withRandomCacheBusterFast = (url) => {
           handleShareLineClick(index);
           return;
         }
-        if (!hasTimestamp || line.time == null) return;
+        if (!hasTimestamp || !line || line.time == null) return;
         const v = document.querySelector('video');
         if (v) v.currentTime = line.time + timeOffset;
       };
@@ -4268,8 +4544,6 @@ const withRandomCacheBusterFast = (url) => {
 
     if (PipManager.pipWindow && PipManager.pipLyricsContainer) {
       PipManager.pipLyricsContainer.innerHTML = ui.lyrics.innerHTML;
-      
-
       if (PipManager.pipWindow.document) {
         PipManager.pipWindow.document.body.classList.toggle('ytm-no-timestamp', !hasTimestamp);
       }
@@ -4788,6 +5062,8 @@ const withRandomCacheBusterFast = (url) => {
       currentKey = key;
       lyricsData = [];
       dynamicLines = null;
+      duetSubDynamicLines = null;
+      _duetExcludedTimes = new Set();
       lyricsCandidates = null;
       selectedCandidateId = null;
       lyricsRequests = null;
