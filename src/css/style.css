@@ -1,4 +1,6 @@
 /* フォント読み込み */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=LINE+Seed+JP:wght@100;400;700;800&display=swap');
 @font-face {
   font-family: "InterVariable";
   src: url("../assets/fonts/InterVariable/InterVariable.woff2") format("woff2");
@@ -9,7 +11,7 @@
 
 /* フォント適用 */
 * {
-  font-family: '-apple-system', 'InterVariable', 'Noto Sans JP' !important;
+  font-family: '-apple-system', 'Inter', 'LINE Seed JP' !important;
 }
 
 /* 背景ぼかし */
@@ -126,14 +128,14 @@ body.ytm-custom-layout ytmusic-search-box input {
 }
 #ytm-custom-title {
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   margin-bottom: 7.5px;
 }
 #ytm-custom-artist {
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.8);
 }
 
@@ -232,7 +234,7 @@ body.ytm-custom-layout ytmusic-search-box input {
 .lyric-line {
   font-size: 30px;
   letter-spacing: -0.04em;
-  font-weight: 800;
+  font-weight: 700;
   color: rgba(255, 255, 255, 0.3);
   margin-bottom: 20px;
   cursor: pointer;
@@ -943,7 +945,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 
 .bento-value-huge {
   font-size: 56px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -2px;
   margin: 10px 0;
@@ -991,7 +993,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 
 .bento-song-title {
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
   margin-bottom: 4px;
   text-shadow: 0 4px 12px rgba(0,0,0,0.5);
@@ -1048,7 +1050,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 
 .bento-artist-name {
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 700;
   margin: 10px 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1175,7 +1177,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 
 .replay-time-val {
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 400;
   opacity: 0.5;
   margin-top: 2px;
   font-feature-settings: "tnum";
@@ -1284,7 +1286,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
 #ytm-queue-panel h3 {
   margin: 0 0 20px 0;
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   opacity: 0.9;
 }
 
