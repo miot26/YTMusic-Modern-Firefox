@@ -934,13 +934,34 @@ body:not(.ytm-custom-layout) #hover-time-info-new {
   border-radius: 10px !important;
   z-index: 10000 !important;
 }
-
+/* マルチページメニュー */
 body:not(.ytm-custom-layout) ytmusic-multi-page-menu-renderer {
   border-radius: 20px !important;
   background: rgba(20, 20, 20, 0.7) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
 }
-
+/* 次に再生トースト */
+tp-yt-paper-toast.style-scope {
+  background: rgba(30, 30, 30, 0.5) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 10px !important; 
+  transform: translateY(0px) !important; /* 下から上に行くアニメーションをオーバーライド */
+  margin-top: -20px !important;
+  left:1vh !important;
+}
+body.ytm-custom-layout tp-yt-paper-toast.style-scope {
+  margin-bottom: -16px !important;
+  left: 7.5vh !important;
+}
+/* 3点メニューポップアップ */
+tp-yt-paper-listbox.ytmusic-menu-popup-renderer {
+  border-radius: 10px !important;
+  --paper-listbox-background-color: rgba(20, 20, 20, 70%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+}
 /* Lyricsアップロードメニュー */
 .ytm-upload-menu {
   position: absolute;
