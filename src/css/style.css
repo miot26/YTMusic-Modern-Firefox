@@ -92,7 +92,6 @@ body.ytm-custom-layout.ytm-no-lyrics #ytm-custom-left-col {
 body.ytm-custom-layout #player-bar-background,
 body.ytm-custom-layout #guide-wrapper,
 body.ytm-custom-layout ytmusic-mini-guide-renderer,
-body.ytm-custom-layout ytmusic-app-layout>[slot="nav-bar"],
 body.ytm-custom-layout #browse-page,
 body.ytm-custom-layout #player-page,
 body.ytm-custom-layout #main-panel,
@@ -103,18 +102,48 @@ body.ytm-custom-layout .side-panel {
 }
 
 
+
 body.ytm-custom-layout ytmusic-nav-bar {
   visibility: visible !important;
-  opacity: 1 !important;
+  opacity: 0 !important; 
   pointer-events: auto !important;
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  background: rgba(0, 0, 0, 0.2) !important;
+  height: 64px; 
+  background: rgba(0, 0, 0, 0.6) !important; 
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  z-index: 2000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2100 !important; 
+  
+  
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0, 0, 1), background 0.3s;
+  transform: translateY(-20px); 
+}
+
+body.ytm-custom-layout ytmusic-nav-bar:hover {
+  opacity: 1 !important;
+  transform: translateY(0); 
+}
+
+
+body.ytm-custom-layout ytmusic-nav-bar ytmusic-search-box {
+  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+body.ytm-custom-layout ytmusic-nav-bar .right-content {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+body.ytm-custom-layout ytmusic-nav-bar:hover .right-content {
+  opacity: 1;
+}
+
+
+body.ytm-custom-layout ytmusic-nav-bar ytmusic-search-box {
+  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
 
 body.ytm-custom-layout ytmusic-nav-bar[is-bauhaus-sidenav-enabled] .right-content.ytmusic-nav-bar {
@@ -161,6 +190,9 @@ body.ytm-custom-layout ytmusic-search-box {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
 }
 
 #ytm-custom-title {
@@ -170,8 +202,15 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-bottom: 8px;
   line-height: 1.2;
   text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-  word-break: keep-all;
+  
+
+  word-break: normal; 
   overflow-wrap: break-word;
+  
+  width: 100%;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 #ytm-custom-artist {
@@ -222,11 +261,7 @@ body.ytm-custom-layout ytmusic-search-box {
 }
 
 
-/* =========================================
-   新しい設定パネルのデザイン (ここから貼り付け)
-   ========================================= */
 
-/* パネル本体 */
 #ytm-settings-panel {
   position: fixed;
   top: 50%;
@@ -403,7 +438,7 @@ body.ytm-custom-layout ytmusic-search-box {
 #trans-toggle:checked,
 #shared-trans-toggle:checked,
 #sync-offset-save-toggle:checked,
-#fast-mode-toggle:checked {  /* ←ここに追加 */
+#fast-mode-toggle:checked {  
   background: #34c759;
 }
 
@@ -411,7 +446,7 @@ body.ytm-custom-layout ytmusic-search-box {
 #trans-toggle::after,
 #shared-trans-toggle::after,
 #sync-offset-save-toggle::after,
-#fast-mode-toggle::after {  /* ←ここに追加 */
+#fast-mode-toggle::after { 
   content: '';
   position: absolute;
   top: 2px;
@@ -496,8 +531,8 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-bottom: 35px;
   padding-left: 40px;
   cursor: pointer;
-  transition: transform 0.5s, filter 0.5s, color 0.5s; /* font-weightはカクつくのでtransitionから外す */
-  transform-origin: left;
+  transition: transform 0.5s, filter 0.5s, color 0.5s; 
+    transform-origin: left;
   filter: blur(1px);
   transform: scale(0.95);
   display: block;
@@ -506,7 +541,7 @@ body.ytm-custom-layout ytmusic-search-box {
   overflow-wrap: anywhere;
   word-break: keep-all;
   text-wrap: balance;
-  white-space: normal;
+  white-space: pre-wrap;
 }
 
 
@@ -721,13 +756,9 @@ body.ytm-custom-layout #hover-time-info-new {
   z-index: 10000 !important;
 }
 
-body.ytm-custom-layout ytmusic-player-bar .content-info-wrapper {
-  visibility: hidden !important;   /* display:none → visibility:hidden に変更 */
-  position: absolute !important;   /* レイアウトから外す */
-  left: -9999px !important;        /* 画面外に飛ばす */
-  width: 1px !important;
-  height: 1px !important;
-  overflow: hidden !important;
+/* プレイヤーバー内の曲情報は使わない */
+body.ytm-custom-layout .content-info-wrapper .style-scope {
+  display: none !important;
 }
 
 /* 右側コントロール */
@@ -894,9 +925,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls tp-yt-paper-icon
   order: 100 !important;
 }
 
-/* モバイル用のボタン：画面幅に応じて表示/非表示 */
-/* 広い画面では非表示（左側コントロールが表示される） */
-/* 注意: #right-controls-mwebはDOM内に2つ存在する（player-bar内とplayer-page内） */
+
 @media (min-width: 616px) {
   #right-controls-mweb,
   ytmusic-player-bar #right-controls-mweb,
@@ -906,10 +935,9 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls tp-yt-paper-icon
   }
 }
 
-/* Immersionモード時、プレイヤーページが閉じているときのみモバイル用ボタンを非表示 */
-/* （IMMERSボタンに重なる再生/次へボタンを消す） */
+
 @media (max-width: 615px) {
-  /* body.ytm-custom-layoutまたは#my-mode-toggle.activeが存在する場合 */
+
   body.ytm-custom-layout ytmusic-app-layout:not([player-page-open]) ytmusic-player-bar #right-controls-mweb,
   ytmusic-app-layout:not([player-page-open]) ytmusic-player-bar:has(#my-mode-toggle.active) #right-controls-mweb {
     display: none !important;
@@ -2194,4 +2222,22 @@ body.ytm-custom-layout::before {
   background-color: #050505;
   z-index: 999; 
   pointer-events: none;
+}
+
+
+/* duet: sub vocal lines align right */
+.lyric-line.sub-vocal {
+  text-align: right;
+  padding-left: 20px;
+  padding-right: 40px;
+  transform-origin: right;
+}
+
+.lyric-line.sub-vocal .lyric-main {
+  text-align: right;
+}
+/* 左上のハンバーガーメニューを非表示にする */
+body.ytm-custom-layout ytmusic-nav-bar .left-content > tp-yt-paper-icon-button,
+body.ytm-custom-layout ytmusic-nav-bar .left-content #guide-button {
+  display: none !important;
 }

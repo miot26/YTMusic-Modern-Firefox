@@ -15,7 +15,9 @@
     "https://immersionproject.coreone.work/*",
     "http://immersionproject.coreone.work/*",
     "https://api-free.deepl.com/*",
-    "https://api.deepl.com/*"
+    "https://api.deepl.com/*",
+    "http://127.0.0.1:5678/*",
+    "http://localhost:5678/*"
   ],
   "background": {
     "service_worker": "src/js/background.js"
@@ -35,5 +37,10 @@
       ],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "icons": {
+    "16": "src/assets/icons/icon16.png",
+    "48": "src/assets/icons/icon48.png",
+    "128": "src/assets/icons/icon128.png"
+  }
 }
