@@ -2508,8 +2508,6 @@
       changeUIWithMovieMode(changed);
     };
 
-    const preferMode = switcher.getAttribute("playback-mode");
-
     handleMutation();
     bringSwitcherOnly();
     const observer = new MutationObserver((mutations) => {
