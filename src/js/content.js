@@ -974,7 +974,7 @@
           element.classList.add('inactive');
         });
       }
-    }, 1000);
+    }, 1500);
   };
   const storage = {
     _api: chrome?.storage?.local,
@@ -2495,6 +2495,8 @@
       pusher(switcher);
       const video = document.querySelector("ytmusic-player#player");
       pusher(video);
+      const navBar = document.querySelector("ytmusic-nav-bar")
+      pusher(navBar);
 
       classTargets.forEach(element => {
         if (moviemode) {
@@ -2556,7 +2558,17 @@
     }, 300);
   }
   function isYTMPremiumUser() {
-
+    const switcher = document.querySelector("ytmusic-av-toggle");
+    const requireSignIn = !!document.querySelector('ytmusic-guide-signin-promo-renderer');
+    const notPremium = document.querySelector('#mini-guide ytmusic-guide-section-renderer[is-primary] div#items').childNodes.length >= 4;
+    if(!requireSignIn && !notPremium){
+      if(switcher) switcher.classList.remove('notpremium');
+    }
+    else {
+      
+      if(switcher) switcher.classList.add('notpremium');
+    }
+    return !requireSignIn || !notPremium;
   }
   const hoverTimeInfoSetup = () => {
     const timeToSeconds = (str) => {
@@ -4216,7 +4228,7 @@ function renderSettingsPanel() {
     ui.wrapper.append(leftCol, ui.lyrics);
     document.body.appendChild(ui.wrapper);
     setupAutoHideEvents();
-    setupMovieMode(); //moviemode setup
+    if(isYTMPremiumUser()) setupMovieMode(); //moviemode setup
   }
 
   async function loadLyrics(meta) {
@@ -5148,7 +5160,7 @@ function renderLyrics(data) {
         toggleBtn.onclick = () => {
           config.mode = !config.mode;
           document.body.classList.toggle('ytm-custom-layout', config.mode);
-          changeIModeUIWithMovieMode(config.mode);
+          if(isYTMPremiumUser()) changeIModeUIWithMovieMode(config.mode);
 
           toggleBtn.classList.toggle('active', config.mode);
         };
