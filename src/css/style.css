@@ -108,15 +108,18 @@ body.ytm-custom-layout ytmusic-nav-bar {
   opacity: 0 !important; 
   pointer-events: auto !important;
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+  top: 10px;
+  left: 10%;
+  width: 80%;
   height: 64px; 
   background: rgba(0, 0, 0, 0.6) !important; 
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 2100 !important; 
-  
+  border-radius: 20px;
+  padding-left: 10px;
+  padding-right: 10px;
+  background: rgba(0, 0, 0, 0.5) !important;
   
   transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0, 0, 1), background 0.3s;
   transform: translateY(-20px); 
@@ -159,7 +162,26 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-left: 96px;
 }
 
-
+body.ytm-custom-layout div#ytm-custom-wrapper ytmusic-player#player.style-scope.ytmusic-player-page.moviemode {
+  position: absolute !important;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  margin: 0 !important;
+}
+body.ytm-custom-layout div#ytm-custom-wrapper ytmusic-av-toggle{
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+  opacity:1;
+  visibility: visible;
+}
+body.ytm-custom-layout div#ytm-custom-wrapper ytmusic-av-toggle.inactive.moviemode {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 #ytm-custom-left-col {
   display: flex;
   flex-direction: column;
@@ -167,6 +189,11 @@ body.ytm-custom-layout ytmusic-search-box {
   width: 400px;
   text-align: center;
   transition: transform 0.5s ease;
+}
+#ytm-custom-left-col.moviemode {
+  position: absolute;
+  left: 0%;
+  top: 75%;
 }
 
 #ytm-artwork-container {
@@ -176,6 +203,9 @@ body.ytm-custom-layout ytmusic-search-box {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   margin-bottom: 30px;
+}
+#ytm-artwork-container.moviemode {
+  display: none;
 }
 
 #ytm-artwork-container img {
@@ -211,13 +241,29 @@ body.ytm-custom-layout ytmusic-search-box {
   max-width: 340px;
   margin-left: auto;
   margin-right: auto;
-}
 
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+  opacity: 1;
+  visibility: visible;
+}
+#ytm-custom-title.inactive.moviemode {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 #ytm-custom-artist {
   font-size: 20px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.7);
   margin-bottom: 24px;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+  opacity: 1;
+  visibility: visible;
+}
+#ytm-custom-artist.inactive.moviemode {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 
@@ -518,6 +564,13 @@ body.ytm-custom-layout ytmusic-search-box {
   padding-top: 30vh;
 }
 
+#my-lyrics-container.moviemode {
+  height: 28vh;
+  position: absolute;
+  left: 75%;
+  top: 60%;
+  text-align: right;
+}
 #my-lyrics-container::-webkit-scrollbar {
   display: none;
 }
@@ -532,7 +585,7 @@ body.ytm-custom-layout ytmusic-search-box {
   padding-left: 40px;
   cursor: pointer;
   transition: transform 0.5s, filter 0.5s, color 0.5s; 
-    transform-origin: left;
+  transform-origin: left;
   filter: blur(1px);
   transform: scale(0.95);
   display: block;
@@ -543,7 +596,9 @@ body.ytm-custom-layout ytmusic-search-box {
   text-wrap: balance;
   white-space: pre-wrap;
 }
-
+.lyric-line.moviemode {
+  transform-origin: right;
+}
 
 .lyric-line.empty-line {
   display: none;
@@ -560,6 +615,9 @@ body.ytm-custom-layout ytmusic-search-box {
   filter: blur(0);
   transform: scale(1.05);
   text-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+}
+.lyric-line.active.moviemode {
+  color:rgba(255,255,255,0.8);
 }
 
 .lyric-translation {
@@ -711,8 +769,21 @@ body.ytm-custom-layout ytmusic-player-bar {
   visibility: visible !important;
   opacity: 1 !important;
   overflow: visible !important;
+  transition: opacity 0.5s ease, visibility 0.5s ease !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
-
+body.ytm-custom-layout ytmusic-player-bar.moviemode{
+    --ytmusic-player-bar-fullscreen-progress-bar-inset: 20px;
+    visibility: visible !important;
+    background: rgba(0, 0, 0, 20%) !important;
+    backdrop-filter: blur(8px) saturate(100%) !important;
+}
+body.ytm-custom-layout ytmusic-player-bar.inactive.moviemode {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events:none !important;
+}
 /* 左側コントロール */
 body.ytm-custom-layout .left-controls {
   flex: 0 0 auto !important;
@@ -963,7 +1034,7 @@ body:not(.ytm-custom-layout) #hover-time-info-new {
   z-index: 10000 !important;
 }
 /* マルチページメニュー */
-body:not(.ytm-custom-layout) ytmusic-multi-page-menu-renderer {
+ytmusic-multi-page-menu-renderer {
   border-radius: 20px !important;
   background: rgba(20, 20, 20, 0.7) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
@@ -1201,14 +1272,12 @@ tp-yt-paper-listbox.ytmusic-menu-popup-renderer {
     text-align: left;
     margin-bottom: 2px;
   }
-
   body.ytm-custom-layout #ytm-custom-artist {
     font-size: 13px;
     font-weight: 500;
     margin-bottom: 4px;
     text-align: left;
   }
-
   body.ytm-custom-layout #ytm-btn-area {
     justify-content: flex-start;
     margin-top: 6px;

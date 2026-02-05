@@ -947,21 +947,35 @@
   let deleteDialogGlobalSetup = false;
   let settingsOutsideClickSetup = false;
   let toastTimer = null;
+  let moviemode = null;
+  let movieObserver = null;
 
   const handleInteraction = () => {
-    if (!ui.btnArea) return;
-    ui.btnArea.classList.remove('inactive');
+    const targets = [];
+    const title = ui.title;
+    const artist = ui.artist;
+    const playerBar = document.querySelector("ytmusic-player-bar");
+    const switcher = document.querySelector("ytmusic-av-toggle");
+    if (title) targets.push(title);
+    if (artist) targets.push(artist);
+    if (playerBar) targets.push(playerBar);
+    if (switcher) targets.push(switcher);
+    if (ui.btnArea) targets.push(ui.btnArea);
+    targets.forEach(element => {
+      element.classList.remove('inactive');
+    });
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       const isSettingsActive = ui.settings?.classList.contains('active');
       const isReplayActive = ui.replayPanel?.classList.contains('active');
       const isQueueActive = ui.queuePanel?.matches(':hover');
-      if (!isSettingsActive && !isReplayActive && !isQueueActive && !ui.btnArea.matches(':hover')) {
-        ui.btnArea.classList.add('inactive');
+      if (!isSettingsActive && !isReplayActive && !isQueueActive && !targets.some(target => target?.matches(':hover'))) {
+        targets.forEach(element => {
+          element.classList.add('inactive');
+        });
       }
-    }, 3000);
+    }, 1000);
   };
-
   const storage = {
     _api: chrome?.storage?.local,
     get: (k) => new Promise(r => {
@@ -2393,7 +2407,157 @@
 
     return found || null;
   };
+  function setupMovieMode() {
+    const check = () => {
+      const video = document.querySelector("ytmusic-player#player.style-scope.ytmusic-player-page");
+      const target = document.querySelector("#ytm-custom-wrapper");
+      const switcher = document.querySelector("ytmusic-av-toggle");
+      const switcherTarget = document.querySelector("#ytm-custom-info-area");
 
+      if (!video || !target || !switcher || !switcherTarget) {
+        setTimeout(check, 100);
+        return;
+      }
+
+      movieObserver = observerMovieModeSetup();
+    };
+    check();
+  };
+  function bringSwitcherOnly(){
+    const switcher = document.querySelector("ytmusic-av-toggle");
+    const customSwitcherParent = document.querySelector("#ytm-custom-info-area");
+    customSwitcherParent.appendChild(switcher);
+  }
+  function changeIModeUIWithMovieMode(mode) {
+    if (!mode) {
+      moviemode = null;
+      if (movieObserver) movieObserver.stop();
+      movieObserver = null;
+      const switcher = document.querySelector("ytmusic-av-toggle");
+      const video = document.querySelector("ytmusic-player#player");
+      const switcherParent = document.querySelector("#ytm-custom-info-area");
+      const originParent = document.querySelector("div#main-panel");
+      const originSwitcherTarget = originParent.children[1];
+      const originTarget = originParent.children[2];
+      if (!originParent.contains(video)) {
+        originParent.insertBefore(video, originTarget);
+      }
+      if (!originParent.contains(switcher)) {
+        originSwitcherTarget.appendChild(switcher);
+      }
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 300);
+    }
+    else {
+      if (movieObserver) movieObserver.stop();
+      movieObserver = null;
+      movieObserver = observerMovieModeSetup();
+    }
+  }
+  const observerMovieModeSetup = () => {
+    const switcher = document.querySelector("ytmusic-av-toggle");
+    if (!switcher) return null;
+
+    if (movieObserver) {
+      movieObserver.stop();
+      movieObserver = null;
+    }
+
+    let changed;
+    let classTargets = [];
+
+    const handleMutation = () => {
+      const mode = switcher.getAttribute("playback-mode");
+      const newMoviemode = (mode === "OMV_PREFERRED") ? true : false;
+
+      if (moviemode !== newMoviemode) {
+        changed = true;
+      } else {
+        changed = false;
+      }
+
+      moviemode = newMoviemode;
+
+      classTargets = [];
+      const wrapper = document.querySelector("#ytm-custom-wrapper");
+      if (wrapper instanceof Element) {
+        classTargets.push(...wrapper.querySelectorAll("*"));
+      }
+      const pusher = (element) => {
+        if (element instanceof Element) classTargets.push(element);
+      };
+      const playerBar = document.querySelector("ytmusic-player-bar");
+      pusher(playerBar);
+      pusher(switcher);
+      const video = document.querySelector("ytmusic-player#player");
+      pusher(video);
+
+      classTargets.forEach(element => {
+        if (moviemode) {
+          element.classList.add("moviemode");
+        } else {
+          element.classList.remove("moviemode");
+        }
+      });
+
+      changeUIWithMovieMode(changed);
+    };
+
+    const preferMode = switcher.getAttribute("playback-mode");
+
+    handleMutation();
+    bringSwitcherOnly();
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "attributes" && mutation.attributeName === "playback-mode") {
+          handleMutation();
+        }
+      });
+    });
+
+    observer.observe(switcher, { attributes: true });
+
+    movieObserver = {
+      stop: () => {
+        observer.disconnect();
+        movieObserver = null;
+      }
+    };
+
+    return movieObserver;
+  };
+  function changeUIWithMovieMode(changed) {
+    if (!changed || changed === null) return;
+    const originParent = document.querySelector("div#main-panel");
+    const originTarget = originParent.children[2];
+    const customParent = document.querySelector("#ytm-custom-wrapper");
+    const customSwitcherParent = document.querySelector("#ytm-custom-info-area");
+    const switcher = document.querySelector("ytmusic-av-toggle");
+    const video = document.querySelector("ytmusic-player#player.style-scope.ytmusic-player-page");
+
+    if (moviemode) {
+      customParent.prepend(video);
+      customSwitcherParent.appendChild(switcher);
+    }
+    else {
+      if (!originParent.contains(video)) {
+        originParent.insertBefore(video, originTarget);
+      }
+    }
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 300);
+  }
+  function isYTMPremiumUser() {
+
+  }
   const hoverTimeInfoSetup = () => {
     const timeToSeconds = (str) => {
       const [m, s] = str.split(":").map(Number);
@@ -2822,6 +2986,7 @@
     document.body.dataset.autohideSetup = 'true';
     handleInteraction();
   }
+  
 
   // ===================== 歌詞＋翻訳適用 =====================
 
@@ -4051,6 +4216,7 @@ function renderSettingsPanel() {
     ui.wrapper.append(leftCol, ui.lyrics);
     document.body.appendChild(ui.wrapper);
     setupAutoHideEvents();
+    setupMovieMode(); //moviemode setup
   }
 
   async function loadLyrics(meta) {
@@ -4982,7 +5148,7 @@ function renderLyrics(data) {
         toggleBtn.onclick = () => {
           config.mode = !config.mode;
           document.body.classList.toggle('ytm-custom-layout', config.mode);
-
+          changeIModeUIWithMovieMode(config.mode);
 
           toggleBtn.classList.toggle('active', config.mode);
         };
