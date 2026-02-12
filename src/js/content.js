@@ -2195,21 +2195,45 @@ const TEXTS = {
 
 function updateMetaUI(meta) {
   ui.title.innerText = meta.title;
-  ui.artist.innerText = meta.artist;
-
-  const artistLinkEl = document.querySelector('ytmusic-player-bar .byline.style-scope.ytmusic-player-bar a.yt-simple-endpoint');
-  if (artistLinkEl && artistLinkEl.href) {
-    const channelUrl = artistLinkEl.href;
-    ui.artist.innerHTML = `<a href="${channelUrl}" target="_blank" style="color:inherit; text-decoration:none;">${meta.artist}</a>`;
-  } else {
-    ui.artist.innerText = meta.artist;
-  }
 
   if (meta.src) {
     ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
     ui.bg.style.backgroundImage = `url(${meta.src})`;
   }
   ui.lyrics.innerHTML = '<div class="lyric-loading" style="opacity:0.5; padding:20px;">Loading...</div>';
+[]
+  const byline = document.querySelector('ytmusic-player-bar .byline.style-scope.ytmusic-player-bar.complex-string');
+  
+  if (!byline) {
+    ui.artist.innerText = meta.artist;
+    return;
+  }
+  const artistLinkElements = Array.from(
+    byline.querySelectorAll('a.yt-simple-endpoint')
+  ).filter(a => {
+    const href = a.href || '';
+    return href.includes('channel/') || href.includes('/channel/');
+  });
+
+  if (artistLinkElements.length === 0) {
+    ui.artist.innerText = meta.artist;
+    return;
+  }
+
+  let artistHTML = '';
+  
+  artistLinkElements.forEach((link, index) => {
+    const name = link.textContent.trim();
+    const url = link.href;
+
+    artistHTML += `<a href="${url}" target="_blank" style="color:inherit; text-decoration:none;"> ${name} </a>`;
+
+    if (index < artistLinkElements.length - 1) {
+      artistHTML += ' • ';
+    }
+  });
+
+  ui.artist.innerHTML = artistHTML;
 }
 
   // 初期化
