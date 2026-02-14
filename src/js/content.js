@@ -1,6 +1,7 @@
 if (typeof browser !== "undefined" && typeof chrome === "undefined") {
     window.chrome = browser;
 }
+
 (function () {
   let config = {
     deepLKey: null,
@@ -115,6 +116,12 @@ const TEXTS = {
   let deleteDialogGlobalSetup = false;
   let settingsOutsideClickSetup = false;
   let toastTimer = null;
+
+  const debouncedSyncQueue = debounce(() => {
+    if (ui.queuePanel?.classList.contains('visible')) {
+      QueueManager.syncQueue();
+    }
+  }, 300); 
 
   const handleInteraction = () => {
     if (!ui.btnArea) return;
@@ -601,23 +608,14 @@ const TEXTS = {
     },
 
     onSongChanged: function() {
-        this.syncQueue();
-        [500, 1000, 2000, 3000].forEach(ms => {
-            setTimeout(() => {
-                if (ui.queuePanel && ui.queuePanel.classList.contains('visible')) {
-                    this.syncQueue();
-                }
-            }, ms);
-        });
+        debouncedSyncQueue();
     },
 
     startObserver: function() {
         const originalQueue = document.querySelector('ytmusic-player-queue');
         if (originalQueue && !this.observer) {
             this.observer = new MutationObserver(() => {
-                if (ui.queuePanel && ui.queuePanel.classList.contains('visible')) {
-                    this.syncQueue();
-                }
+                debouncedSyncQueue();
             });
             this.observer.observe(originalQueue, { 
                 childList: true, 
@@ -634,7 +632,9 @@ const TEXTS = {
       const container = ui.queuePanel.querySelector('.queue-list-content');
       const allRawItems = document.querySelectorAll('ytmusic-player-queue-item');
       
-      const visibleItems = Array.from(allRawItems).filter(item => item.offsetParent !== null);
+      const visibleItems = Array.from(allRawItems).filter(item => {
+        return item.offsetParent !== null && item.getBoundingClientRect().height > 0;
+      });
 
       if (visibleItems.length === 0) return;
 
@@ -671,7 +671,7 @@ const TEXTS = {
         
         const imgHtml = src 
             ? `<img src="${src}" loading="lazy">` 
-            : `<div style="display:flex;justify-content:center;align-items:center;width:100%;height:100%;background:#333;font-size:18px;">🎵</div>`;
+            : `<div style="display:flex;justify-content:center;align-items:center;width:100%;height:100%;background:#333;font-size:18px;">💿</div>`;
 
         const indicatorHtml = isPlaying 
             ? `<div class="queue-playing-indicator"><i></i><i></i><i></i></div>` 
@@ -2244,3 +2244,11 @@ function updateMetaUI(meta) {
   setInterval(tick, 1000);
   startLyricRafLoop();
 })();
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}

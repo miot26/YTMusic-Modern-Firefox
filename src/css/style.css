@@ -117,7 +117,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   align-items: center;
 }
 #ytm-custom-title {
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 700;
   line-height: 1.1;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -1245,7 +1245,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   top: 20px;
   right: -420px;
   width: 380px;
-  height: calc(100vh - 210px);
+  height: calc(100vh - 190px);
   background: rgba(20, 20, 20, 0.4) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
   border-radius: 25px 0 0 24px;
@@ -1414,6 +1414,10 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   border-color: rgba(255, 60, 60, 0.3);
 }
 
-tp-yt-paper-toast#toast.paper-toast-open {
+tp-yt-paper-listbox {
     z-index: 999999 !important;
+    background: rgba(20, 20, 20, 0.4) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
