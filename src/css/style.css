@@ -711,7 +711,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar {
   bottom: 12px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  width: 98% !important;
+  width: 95% !important;
   max-width: 1400px !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
   margin: 0 !important;
@@ -1246,8 +1246,8 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   right: -420px;
   width: 380px;
   height: calc(100vh - 210px);
-  background: rgba(20, 20, 25, 0.85);
-  backdrop-filter: blur(40px) saturate(180%);
+  background: rgba(20, 20, 20, 0.4) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
   border-radius: 25px 0 0 24px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
@@ -1304,17 +1304,16 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   border-radius: 15px;
   cursor: pointer;
   transition: background 0.2s;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .queue-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .queue-item.current {
   background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 
