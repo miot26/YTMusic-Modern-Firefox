@@ -235,8 +235,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   display: block;
   width: 100%;
   padding-right: 20px;
-  overflow-wrap: anywhere; 
-  word-break: break-all;
+  overflow-wrap: break-word;
   white-space: normal;
 }
 
