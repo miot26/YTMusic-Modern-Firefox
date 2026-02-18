@@ -1421,3 +1421,14 @@ tp-yt-paper-listbox {
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
+
+tp-yt-paper-toast {
+    z-index: 999999 !important;
+  background: rgba(20, 20, 20, 0.4) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+yt-formatted-string#text.style-scope.yt-notification-action-renderer {
+  color:#fff !important
+}

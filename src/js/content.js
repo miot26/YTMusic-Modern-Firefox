@@ -2229,7 +2229,7 @@ function updateMetaUI(meta) {
     artistHTML += `<a href="${url}" target="_blank" style="color:inherit; text-decoration:none;"> ${name} </a>`;
 
     if (index < artistLinkElements.length - 1) {
-      artistHTML += ' • ';
+      artistHTML += ', ';
     }
   });
 
