@@ -1,8 +1,7 @@
 ### 🗻 Overview
 [YouTube Music](https://music.youtube.com) のWeb版再生UIをよりモダンに変更する**Firefox拡張機能**です。  
-[Naikaku](https://github.com/naikaku1) 氏によってChrome向けに開発された [YTM_Immersion](https://github.com/naikaku1/YTM-Modern-UI) を [hacshew](https://github.com/hacshew) が独自にFirefox向けに改変しています。
+[Naikaku](https://github.com/naikaku1) 氏によってChrome向けに開発された [YTM_Immersion](https://github.com/naikaku1/YTM-Immersion) を [hacshew](https://github.com/hacshew) が独自にFirefox向けに改変しています。本家の改変には追従していません (v0.1.0~)。
 
-<img src=".github/image/thumbnail.png" width="60%">
 
 ### 🛠️ Installation Guide
 この拡張機能は，Firefox「**デバッグモード**」においてのみ使用できます。  
